@@ -5,22 +5,34 @@ import {
     Typography, Chip 
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import { getUsuarios } from '../services/api';
 
-const BASE_URL = 'http://localhost:8080/appchat/api';
-
-export default function Buscador({ onSeleccionarUsuario }) {
+export default function Buscador({ token, onSeleccionarUsuario }) {
     const [query, setQuery] = useState('');
     const [usuarios, setUsuarios] = useState([]);
     const [todos, setTodos] = useState([]);
 
     useEffect(() => {
-        fetch(`${BASE_URL}/usuarios`)
-            .then(res => res.json())
-            .then(data => {
-                setTodos(data);
-                setUsuarios(data);
-            });
-    }, []);
+        if (token) {
+            getUsuarios(token)
+                .then(data => {
+                    const visibles = data.filter(u => u.estado !== 'INVISIBLE');
+                    setTodos(visibles);
+                    setUsuarios(visibles);
+                })
+                .catch(err => console.error('Error fetching users:', err));
+        }
+    }, [token]);
+
+       /* Para ver usuarios invisibles
+   useEffect(() => {
+    fetch('/appchat/api/usuarios')
+        .then(res => res.json())
+        .then(data => {
+            setTodos(data);
+            setUsuarios(data);
+        });
+}, []);*/
 
     const handleBuscar = (valor) => {
         setQuery(valor);

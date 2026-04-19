@@ -1,55 +1,82 @@
-import { Box, AppBar, Toolbar, Typography, Avatar, Divider } from '@mui/material';
+import { useState } from 'react';
+import {
+    Box, Card, CardContent, TextField, Button,
+    Typography, Alert, CircularProgress
+} from '@mui/material';
 import ChatIcon from '@mui/icons-material/Chat';
-import Buscador from './Buscador';
+import { login } from '../services/api';
 
-export default function Layout({ onSeleccionarUsuario }) {
+export default function Login({ onLogin }) {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [cargando, setCargando] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setCargando(true);
+        try {
+            const data = await login(email, password);
+            if (data.token) {
+                localStorage.setItem('token', data.token);
+                onLogin(data.token);
+            } else {
+                setError(data.error || 'Credenciales incorrectas');
+            }
+        } catch {
+            setError('No se pudo conectar con el servidor');
+        } finally {
+            setCargando(false);
+        }
+    };
+
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-            
-            {/* Barra superior */}
-            <AppBar position="static" elevation={1}>
-                <Toolbar>
-                    <ChatIcon sx={{ mr: 1 }} />
-                    <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                        AppChat Corporativa
-                    </Typography>
-                    <Avatar sx={{ bgcolor: 'secondary.main', cursor: 'pointer' }}>
-                        A
-                    </Avatar>
-                </Toolbar>
-            </AppBar>
-
-            {/* Contenido principal */}
-            <Box sx={{ display: 'flex', flexGrow: 1, overflow: 'hidden' }}>
-                
-                {/* Sidebar izquierdo */}
-                <Box sx={{ 
-                    width: 320, 
-                    borderRight: '1px solid', 
-                    borderColor: 'divider',
-                    overflow: 'auto',
-                    flexShrink: 0
-                }}>
-                    <Buscador onSeleccionarUsuario={onSeleccionarUsuario} />
-                </Box>
-
-                {/* Área de chat derecha */}
-                <Box sx={{ 
-                    flexGrow: 1, 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    bgcolor: 'grey.50'
-                }}>
-                    <Box textAlign="center">
-                        <ChatIcon sx={{ fontSize: 80, color: 'grey.300' }} />
-                        <Typography variant="h6" color="text.secondary" mt={2}>
-                            Seleccioná un usuario para chatear
-                        </Typography>
+        <Box sx={{
+            height: '100vh', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            bgcolor: 'grey.100'
+        }}>
+            <Card sx={{ width: 380, p: 2 }}>
+                <CardContent>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+                        <ChatIcon color="primary" sx={{ fontSize: 48, mb: 1 }} />
+                        <Typography variant="h5" fontWeight="bold">AppChat Corporativa</Typography>
+                        <Typography variant="body2" color="text.secondary">Iniciá sesión para continuar</Typography>
                     </Box>
-                </Box>
 
-            </Box>
+                    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+                    <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <TextField
+                            label="Email"
+                            type="email"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            required
+                            fullWidth
+                            autoFocus
+                        />
+                        <TextField
+                            label="Contraseña"
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            required
+                            fullWidth
+                        />
+                        <Button
+                            type="submit"
+                            variant="contained"
+                            fullWidth
+                            size="large"
+                            disabled={cargando}
+                        >
+                            {cargando ? <CircularProgress size={24} color="inherit" /> : 'Iniciar sesión'}
+                        </Button>
+                    </Box>
+                </CardContent>
+            </Card>
         </Box>
     );
 }
