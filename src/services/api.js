@@ -1,4 +1,4 @@
-const BASE_URL = '/appchat/api';
+const BASE_URL = 'http://localhost:8080/appchat/api';
 
 async function parseResponse(response) {
     if (!response.ok) {
@@ -10,7 +10,7 @@ async function parseResponse(response) {
 }
 
 export const login = async (email, password) => {
-    const response = await fetch('/appchat/api/auth/login', {
+    const response = await fetch('http://localhost:8080/appchat/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -82,7 +82,7 @@ export const getMensajes = async (chatId, token, page = 0) => {
 };
 
 export const crearChat = async (usuarioDestinoId, comunidadId, token) => {
-    const response = await fetch(`/appchat/api/chats`, {
+    const response = await fetch(`http://localhost:8080/appchat/api/chats`, {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json',
@@ -91,4 +91,44 @@ export const crearChat = async (usuarioDestinoId, comunidadId, token) => {
         body: JSON.stringify({ usuarioDestinoId, comunidadId })
     });
     return response.json();
+};
+
+export const getComunidades = async (token) => {
+    const response = await fetch(`${BASE_URL}/comunidades`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return parseResponse(response);
+};
+
+export const getComunidadDetalle = async (id, token) => {
+    const response = await fetch(`${BASE_URL}/comunidades/${id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return parseResponse(response);
+};
+
+export const crearComunidad = async (datos, token) => {
+    const response = await fetch(`${BASE_URL}/comunidades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(datos)
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+};
+
+export const editarComunidad = async (id, datos, token) => {
+    const response = await fetch(`${BASE_URL}/comunidades/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(datos)
+    });
+    return parseResponse(response);
+};
+
+export const eliminarComunidad = async (id, token) => {
+    const response = await fetch(`${BASE_URL}/comunidades/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 };

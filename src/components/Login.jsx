@@ -21,14 +21,14 @@ export default function Login({ onLogin }) {
         setCargando(true);
         setError('');
         try {
-            const response = await fetch('/appchat/api/auth/login', {
+            const response = await fetch('http://localhost:8080/appchat/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
             if (response.ok) {
-                const token = await response.text();
-                onLogin(token);
+                const data = await response.json();
+                onLogin(data.token);
             } else {
                 setError('Email o contraseña incorrectos');
             }

@@ -24,8 +24,9 @@ function App() {
             .catch(() => {});
     }, [token]);
 
-    if (!token) return <Login onLogin={setToken} />;
-
+    const handleLogin = (t) => { localStorage.setItem('token', t); setToken(t); };
+    if (!token) return <Login onLogin={handleLogin} />;
+    
     return (
         <Layout
             token={token}

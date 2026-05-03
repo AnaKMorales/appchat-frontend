@@ -12,7 +12,7 @@ const STATUS_COLOR = {
     DESCONECTADO: '#94A3B8',
 };
 
-export default function Chat({ token, usuario, usuarioActual }) {
+export default function Chat({ token, usuario, usuarioActual, comunidadId }) {
     const [mensaje, setMensaje] = useState('');
     const [mensajes, setMensajes] = useState([]);
     const [cargando, setCargando] = useState(false);
@@ -20,15 +20,18 @@ export default function Chat({ token, usuario, usuarioActual }) {
     const bottomRef = useRef(null);
 
     useEffect(() => {
-    if (!usuario || !token) return;
+    if (!usuario || !token || !comunidadId) return;
     let ws = null;
     setCargando(true);
     setMensajes([]);
 
-    const COMUNIDAD_ID = 1; // hardcodeado hasta que GET /api/comunidades esté listo
 
-    crearChat(usuario.id, COMUNIDAD_ID, token)
-        .then(chat => getMensajes(chat.id, token).then(h => ({ chatId: chat.id, historial: h })))
+    crearChat(usuario.id, comunidadId, token)
+        //.then(chat => getMensajes(chat.id, token).then(h => ({ chatId: chat.id, historial: h })))
+        .then(chat => {
+    console.log('chat creado:', chat);
+    return getMensajes(chat.id, token).then(h => ({ chatId: chat.id, historial: h }));
+})
         .then(({ chatId, historial }) => {
             setMensajes(historial.mensajes || []);
             ws = new WebSocket(`ws://localhost:8080/appchat/chat?token=${token}`);
@@ -49,7 +52,7 @@ export default function Chat({ token, usuario, usuarioActual }) {
         .finally(() => setCargando(false));
 
     return () => { if (ws) ws.close(); };
-}, [usuario, token]);
+}, [usuario, token, comunidadId]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

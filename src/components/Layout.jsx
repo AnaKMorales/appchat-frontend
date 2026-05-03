@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getComunidades } from '../services/api';
 import { Box, Typography, Avatar, IconButton, Tooltip } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
@@ -6,10 +7,23 @@ import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 import Buscador from './Buscador';
 import Chat from './Chat';
 import Perfil from './Perfil';
+import Comunidades from './Comunidades';
+import GroupsIcon from '@mui/icons-material/Groups';
 
 export default function Layout({ token, usuarioActual, onLogout }) {
+    const [vista, setVista] = useState('chats'); // 'chats' o 'comunidades'
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
     const [verPerfil, setVerPerfil] = useState(false);
+    const [comunidadId, setComunidadId] = useState(null);
+
+useEffect(() => {
+    if (!token) return;
+    getComunidades(token)
+        .then(comunidades => {
+            if (comunidades.length > 0) setComunidadId(comunidades[0].id);
+        })
+        .catch(() => {});
+}, [token]);
 
     const statusColor = {
         EN_LINEA: '#22C55E',
@@ -30,35 +44,29 @@ export default function Layout({ token, usuarioActual, onLogout }) {
                 overflow: 'hidden',
             }}>
                 {/* Cabecera */}
-                <Box sx={{
-                    px: 2.5,
-                    py: 2,
-                    borderBottom: '1px solid rgba(255,255,255,0.07)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1.5,
-                }}>
-                    <Box sx={{
-                        width: 32, height: 32, borderRadius: 1.5,
-                        bgcolor: '#2563EB',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        flexShrink: 0,
-                    }}>
-                        <ChatBubbleIcon sx={{ color: 'white', fontSize: 17 }} />
-                    </Box>
-                    <Typography fontWeight={700} color="white" fontSize={15} noWrap>
-                        Chat Empresarial
-                    </Typography>
+                <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 1 }}>
+                    <Tooltip title="Chats">
+                        <IconButton onClick={() => setVista('chats')} sx={{ color: vista === 'chats' ? 'white' : 'rgba(255,255,255,0.4)', bgcolor: vista === 'chats' ? 'rgba(37,99,235,0.4)' : 'transparent', borderRadius: 2, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}>
+                            <ChatBubbleIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Comunidades">
+                        <IconButton onClick={() => setVista('comunidades')} sx={{ color: vista === 'comunidades' ? 'white' : 'rgba(255,255,255,0.4)', bgcolor: vista === 'comunidades' ? 'rgba(37,99,235,0.4)' : 'transparent', borderRadius: 2, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}>
+                            <GroupsIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
                 </Box>
 
                 {/* Lista de usuarios */}
                 <Box sx={{ flex: 1, overflow: 'auto' }}>
-                    <Buscador
-                        token={token}
-                        onSeleccionarUsuario={(u) => { setUsuarioSeleccionado(u); setVerPerfil(false); }}
-                        usuarioSeleccionado={usuarioSeleccionado}
-                        onUnauthorized={onLogout}
-                    />
+                    {vista === 'chats' ? (
+                        <Buscador
+                            token={token}
+                            onSeleccionarUsuario={(u) => { setUsuarioSeleccionado(u); setVerPerfil(false); }}
+                            usuarioSeleccionado={usuarioSeleccionado}
+                            onUnauthorized={onLogout}
+                        />
+                    ) : null}
                 </Box>
 
                 {/* Barra inferior - usuario actual */}
@@ -119,25 +127,15 @@ export default function Layout({ token, usuarioActual, onLogout }) {
 
             {/* Área principal */}
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {verPerfil ? (
+                {vista === 'comunidades' ? (
+                    <Comunidades token={token} usuarioActual={usuarioActual} />
+                ) : verPerfil ? (
                     <Perfil token={token} usuarioActual={usuarioActual} onVolver={() => setVerPerfil(false)} />
                 ) : usuarioSeleccionado ? (
-                    <Chat token={token} usuario={usuarioSeleccionado} usuarioActual={usuarioActual} />
+                    <Chat token={token} usuario={usuarioSeleccionado} usuarioActual={usuarioActual} comunidadId={comunidadId} />
                 ) : (
-                    <Box sx={{
-                        flex: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: '#F8FAFC',
-                        gap: 2,
-                    }}>
-                        <Box sx={{
-                            width: 80, height: 80, borderRadius: 4,
-                            bgcolor: '#EFF6FF',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
+                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: '#F8FAFC', gap: 2 }}>
+                        <Box sx={{ width: 80, height: 80, borderRadius: 4, bgcolor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <ChatBubbleIcon sx={{ fontSize: 40, color: '#BFDBFE' }} />
                         </Box>
                         <Typography variant="h6" fontWeight={600} color="#1E293B">
