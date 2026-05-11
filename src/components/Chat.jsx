@@ -69,13 +69,7 @@ export default function Chat({ token, usuario, usuarioActual, comunidadId }) {
             contenido: mensaje
         }));
     }
-    
-    setMensajes(prev => [...prev, {
-        id: Date.now(),
-        contenido: mensaje,
-        emisorId: usuarioActual?.id,
-        fechaEnvio: new Date().toISOString(),
-    }]);
+        
     setMensaje('');
 };
 
