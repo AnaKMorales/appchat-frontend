@@ -1,29 +1,16 @@
-import { useState, useEffect } from 'react';
-import { getComunidades } from '../services/api';
+import { useState } from 'react';
 import { Box, Typography, Avatar, IconButton, Tooltip } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
-import Buscador from './Buscador';
 import Chat from './Chat';
 import Perfil from './Perfil';
 import Comunidades from './Comunidades';
-import GroupsIcon from '@mui/icons-material/Groups';
+import PantallaComunidades from './PantallaComunidades';
 
 export default function Layout({ token, usuarioActual, onLogout }) {
-    const [vista, setVista] = useState('chats'); // 'chats' o 'comunidades'
+    const [comunidadSeleccionada, setComunidadSeleccionada] = useState(null);
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
     const [verPerfil, setVerPerfil] = useState(false);
-    const [comunidadId, setComunidadId] = useState(null);
-
-useEffect(() => {
-    if (!token) return;
-    getComunidades(token)
-        .then(comunidades => {
-            if (comunidades.length > 0) setComunidadId(comunidades[0].id);
-        })
-        .catch(() => {});
-}, [token]);
 
     const statusColor = {
         EN_LINEA: '#22C55E',
@@ -43,31 +30,7 @@ useEffect(() => {
                 flexDirection: 'column',
                 overflow: 'hidden',
             }}>
-                {/* Cabecera */}
-                <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 1 }}>
-                    <Tooltip title="Chats">
-                        <IconButton onClick={() => setVista('chats')} sx={{ color: vista === 'chats' ? 'white' : 'rgba(255,255,255,0.4)', bgcolor: vista === 'chats' ? 'rgba(37,99,235,0.4)' : 'transparent', borderRadius: 2, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}>
-                            <ChatBubbleIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Comunidades">
-                        <IconButton onClick={() => setVista('comunidades')} sx={{ color: vista === 'comunidades' ? 'white' : 'rgba(255,255,255,0.4)', bgcolor: vista === 'comunidades' ? 'rgba(37,99,235,0.4)' : 'transparent', borderRadius: 2, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}>
-                            <GroupsIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                </Box>
-
-                {/* Lista de usuarios */}
-                <Box sx={{ flex: 1, overflow: 'auto' }}>
-                    {vista === 'chats' ? (
-                        <Buscador
-                            token={token}
-                            onSeleccionarUsuario={(u) => { setUsuarioSeleccionado(u); setVerPerfil(false); }}
-                            usuarioSeleccionado={usuarioSeleccionado}
-                            onUnauthorized={onLogout}
-                        />
-                    ) : null}
-                </Box>
+                <Box sx={{ flex: 1 }} />
 
                 {/* Barra inferior - usuario actual */}
                 <Box sx={{
@@ -127,24 +90,22 @@ useEffect(() => {
 
             {/* Área principal */}
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {vista === 'comunidades' ? (
-                    <Comunidades token={token} usuarioActual={usuarioActual} />
-                ) : verPerfil ? (
+                {verPerfil ? (
                     <Perfil token={token} usuarioActual={usuarioActual} onVolver={() => setVerPerfil(false)} />
-                ) : usuarioSeleccionado ? (
-                    <Chat token={token} usuario={usuarioSeleccionado} usuarioActual={usuarioActual} comunidadId={comunidadId} />
+                ) : comunidadSeleccionada && usuarioSeleccionado ? (
+                    <Chat
+                        token={token}
+                        usuario={usuarioSeleccionado}
+                        usuarioActual={usuarioActual}
+                        comunidadId={comunidadSeleccionada.id}
+                        onVolver={() => setUsuarioSeleccionado(null)}
+                    />
                 ) : (
-                    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: '#F8FAFC', gap: 2 }}>
-                        <Box sx={{ width: 80, height: 80, borderRadius: 4, bgcolor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <ChatBubbleIcon sx={{ fontSize: 40, color: '#BFDBFE' }} />
-                        </Box>
-                        <Typography variant="h6" fontWeight={600} color="#1E293B">
-                            {usuarioActual ? `Hola, ${usuarioActual.nombre} 👋` : 'Bienvenido'}
-                        </Typography>
-                        <Typography variant="body2" color="#94A3B8">
-                            Seleccioná un usuario para comenzar a chatear
-                        </Typography>
-                    </Box>
+                    <PantallaComunidades
+                        token={token}
+                        usuarioActual={usuarioActual}
+                        onEntrarComunidad={(c) => setComunidadSeleccionada(c)}
+/>
                 )}
             </Box>
         </Box>

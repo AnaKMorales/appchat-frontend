@@ -82,7 +82,7 @@ export const getMensajes = async (chatId, token, page = 0) => {
 };
 
 export const crearChat = async (usuarioDestinoId, comunidadId, token) => {
-    const response = await fetch(`http://localhost:8080/appchat/api/chats`, {
+    const response = await fetch(`${BASE_URL}/chats`, {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ export const crearChat = async (usuarioDestinoId, comunidadId, token) => {
         },
         body: JSON.stringify({ usuarioDestinoId, comunidadId })
     });
-    return response.json();
+    return parseResponse(response);
 };
 
 export const getComunidades = async (token) => {

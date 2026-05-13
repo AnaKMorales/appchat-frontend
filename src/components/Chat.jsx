@@ -25,6 +25,8 @@ export default function Chat({ token, usuario, usuarioActual, comunidadId }) {
     setCargando(true);
     setMensajes([]);
 
+console.log('Abriendo chat con:', { usuarioId: usuario.id, comunidadId, token: token?.substring(0, 20) });
+crearChat(usuario.id, comunidadId, token)
 
     crearChat(usuario.id, comunidadId, token)
         //.then(chat => getMensajes(chat.id, token).then(h => ({ chatId: chat.id, historial: h })))
@@ -48,7 +50,11 @@ export default function Chat({ token, usuario, usuarioActual, comunidadId }) {
             };
             ws.onerror = () => console.warn('WebSocket error');
         })
-        .catch(err => console.error('Error al abrir chat:', err))
+        .catch(err => {
+    console.error('Error al abrir chat:', err);
+    console.error('Status:', err.status);
+    console.error('Message:', err.message);
+})
         .finally(() => setCargando(false));
 
     return () => { if (ws) ws.close(); };
@@ -69,7 +75,7 @@ export default function Chat({ token, usuario, usuarioActual, comunidadId }) {
             contenido: mensaje
         }));
     }
-        
+
     setMensaje('');
 };
 

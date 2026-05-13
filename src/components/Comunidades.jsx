@@ -12,8 +12,7 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { getComunidades, getComunidadDetalle, crearComunidad, editarComunidad, eliminarComunidad } from '../services/api';
 
-export default function Comunidades({ token, usuarioActual }) {
-    const [comunidades, setComunidades] = useState([]);
+export default function Comunidades({ token, usuarioActual, onEntrarComunidad, comunidadSeleccionada, onAbrirChat }) {    const [comunidades, setComunidades] = useState([]);
     const [seleccionada, setSeleccionada] = useState(null);
     const [detalle, setDetalle] = useState(null);
     const [cargando, setCargando] = useState(false);
@@ -62,6 +61,7 @@ export default function Comunidades({ token, usuarioActual }) {
     };
 
     return (
+        
         <Box sx={{ display: 'flex', height: '100%' }}>
             {/* Lista de comunidades */}
             <Box sx={{ width: 260, flexShrink: 0, bgcolor: '#1E2A38', display: 'flex', flexDirection: 'column' }}>
@@ -88,10 +88,18 @@ export default function Comunidades({ token, usuarioActual }) {
                             <Avatar sx={{ width: 36, height: 36, bgcolor: '#2563EB', fontSize: 15, fontWeight: 700 }}>
                                 {c.fotoUrl ? <img src={c.fotoUrl} alt={c.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : c.nombre[0]}
                             </Avatar>
-                            <Box sx={{ minWidth: 0 }}>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
                                 <Typography fontSize={13} fontWeight={600} color="white" noWrap>{c.nombre}</Typography>
                                 <Typography fontSize={11} sx={{ color: 'rgba(255,255,255,0.4)' }} noWrap>{c.descripcion}</Typography>
                             </Box>
+                            <Button
+                                size="small"
+                                variant="contained"
+                                onClick={(e) => { e.stopPropagation(); onEntrarComunidad(c); }}
+                                sx={{ ml: 'auto', bgcolor: '#2563EB', fontSize: 11, px: 1.5, minWidth: 0 }}
+                            >
+                                Entrar
+                            </Button>
                         </Box>
                     ))}
                 </Box>
@@ -122,6 +130,14 @@ export default function Comunidades({ token, usuarioActual }) {
                                 <Typography variant="h6" fontWeight={700} color="#1E293B">{detalle.nombre}</Typography>
                                 <Typography variant="body2" color="#64748B">{detalle.descripcion}</Typography>
                             </Box>
+                            <Button
+                                variant="contained"
+                                startIcon={<GroupsIcon />}
+                                onClick={() => onEntrarComunidad(seleccionada)}
+                                sx={{ bgcolor: '#2563EB' }}
+                            >
+                                Entrar a la comunidad
+                            </Button>
                             {esOwner && (
                                 <Box sx={{ display: 'flex', gap: 1 }}>
                                     <Tooltip title="Editar">
