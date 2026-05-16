@@ -1,123 +1,160 @@
-import { useState, useEffect, useRef } from 'react';
-import { Box, Typography, TextField, IconButton, Avatar, CircularProgress } from '@mui/material';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Box, Typography, TextField, IconButton, Avatar, CircularProgress, Tooltip, Badge } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
-import { crearChat, getMensajes } from '../services/api';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import GroupsIcon from '@mui/icons-material/Groups';
+import { getMensajes } from '../services/api';
 
-const WS_BASE = 'ws://localhost:8080/appchat/chat';
+const WS_URL = 'ws://localhost:8080/appchat/chat';
 
-const STATUS_COLOR = {
-    EN_LINEA: '#22C55E',
-    OCUPADO: '#F59E0B',
-    INVISIBLE: '#94A3B8',
-    DESCONECTADO: '#94A3B8',
-};
-
-export default function Chat({ token, usuario, usuarioActual, comunidadId }) {
+export default function Chat({ token, chat, usuarioActual, onVolver }) {
     const [mensaje, setMensaje] = useState('');
     const [mensajes, setMensajes] = useState([]);
-    const [cargando, setCargando] = useState(false);
+    const [cargando, setCargando] = useState(true);
+    const [wsConectado, setWsConectado] = useState(false);
     const wsRef = useRef(null);
     const bottomRef = useRef(null);
+    const inputRef = useRef(null);
+    const idSetRef = useRef(new Set()); // evitar duplicados
+
+    const { chatId, tipo, nombre } = chat;
+    const esGrupo = tipo === 'GRUPO';
+
+    const agregarMensaje = useCallback((msg) => {
+        if (!msg || !msg.contenido) return;
+        const key = msg.id ?? `tmp-${msg.contenido}-${msg.fechaEnvio}`;
+        if (idSetRef.current.has(key)) return;
+        idSetRef.current.add(key);
+        setMensajes(prev => [...prev, msg]);
+    }, []);
 
     useEffect(() => {
-    if (!usuario || !token || !comunidadId) return;
-    let ws = null;
-    setCargando(true);
-    setMensajes([]);
+        if (!chatId || !token) return;
+        setCargando(true);
+        setMensajes([]);
+        idSetRef.current = new Set();
 
-console.log('Abriendo chat con:', { usuarioId: usuario.id, comunidadId, token: token?.substring(0, 20) });
-crearChat(usuario.id, comunidadId, token)
+        getMensajes(chatId, token)
+            .then(h => {
+                const lista = h?.mensajes || [];
+                lista.forEach(m => idSetRef.current.add(m.id ?? m));
+                setMensajes(lista);
+            })
+            .catch(() => {})
+            .finally(() => setCargando(false));
 
-    crearChat(usuario.id, comunidadId, token)
-        //.then(chat => getMensajes(chat.id, token).then(h => ({ chatId: chat.id, historial: h })))
-        .then(chat => {
-    console.log('chat creado:', chat);
-    return getMensajes(chat.id, token).then(h => ({ chatId: chat.id, historial: h }));
-})
-        .then(({ chatId, historial }) => {
-            setMensajes(historial.mensajes || []);
-            ws = new WebSocket(`ws://localhost:8080/appchat/chat?token=${token}`);
-            ws.chatId = chatId;
-            wsRef.current = ws;
-            ws.onopen = () => console.log('WebSocket conectado');
-            ws.onmessage = (e) => {
-                try { 
-                    const msg = JSON.parse(e.data);
-                    if (msg.type !== 'ERROR') {
-                        setMensajes(prev => [...prev, msg]);
+        const ws = new WebSocket(`${WS_URL}?token=${token}`);
+        ws.chatId = chatId;
+        wsRef.current = ws;
+
+        ws.onopen = () => { setWsConectado(true); };
+        ws.onclose = () => { setWsConectado(false); };
+        ws.onerror = () => { setWsConectado(false); };
+
+        ws.onmessage = (e) => {
+            try {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'ERROR') return;
+                // el servidor no incluye chatId en MensajeDTO, así que aceptamos todo mensaje con contenido
+                if (!msg.contenido) return;
+                // si tiene chatId explícito y no coincide, ignorar
+                if (msg.chatId && msg.chatId !== chatId) return;
+
+                setMensajes(prev => {
+                    // reemplazar mensaje optimista propio si el contenido coincide
+                    const idx = prev.findIndex(m => m._optimista && m.contenido === msg.contenido && m.emisorId === msg.emisorId);
+                    if (idx !== -1) {
+                        const nueva = [...prev];
+                        nueva[idx] = msg;
+                        idSetRef.current.add(msg.id);
+                        return nueva;
                     }
-                } catch { }
-            };
-            ws.onerror = () => console.warn('WebSocket error');
-        })
-        .catch(err => {
-    console.error('Error al abrir chat:', err);
-    console.error('Status:', err.status);
-    console.error('Message:', err.message);
-})
-        .finally(() => setCargando(false));
+                    // mensaje nuevo de otro usuario
+                    if (msg.id && idSetRef.current.has(msg.id)) return prev;
+                    if (msg.id) idSetRef.current.add(msg.id);
+                    return [...prev, msg];
+                });
+            } catch {}
+        };
 
-    return () => { if (ws) ws.close(); };
-}, [usuario, token, comunidadId]);
+        return () => { ws.close(); };
+    }, [chatId, token, agregarMensaje]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [mensajes]);
 
-    const enviar = () => {
-    if (!mensaje.trim()) return;
-    
-    const chatIdActual = wsRef.current?.chatId;
-    
-    if (wsRef.current?.readyState === WebSocket.OPEN && chatIdActual) {
-        wsRef.current.send(JSON.stringify({
-            chatId: chatIdActual,
-            contenido: mensaje
-        }));
-    }
+    const enviar = useCallback(() => {
+        const texto = mensaje.trim();
+        if (!texto) return;
 
-    setMensaje('');
-};
+        // Mostrar inmediatamente en pantalla (optimistic update)
+        const msgOptimista = {
+            id: null,
+            contenido: texto,
+            emisorId: usuarioActual?.id,
+            emisorNombre: usuarioActual?.nombre,
+            emisorApellido: usuarioActual?.apellido,
+            fechaEnvio: new Date().toISOString(),
+            _optimista: true,
+        };
+        const keyOpt = `opt-${Date.now()}`;
+        idSetRef.current.add(keyOpt);
+        msgOptimista._key = keyOpt;
+        setMensajes(prev => [...prev, msgOptimista]);
+        setMensaje('');
+        inputRef.current?.focus();
 
-    const esPropio = (m) => m.emisorId === usuarioActual?.id;
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ chatId, contenido: texto }));
+        }
+    }, [mensaje, chatId, usuarioActual]);
 
     const formatHora = (f) =>
         f ? new Date(f).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
-    const dotColor = STATUS_COLOR[usuario?.estado] || '#94A3B8';
+    const formatFecha = (f) => {
+        if (!f) return '';
+        const d = new Date(f);
+        const hoy = new Date();
+        if (d.toDateString() === hoy.toDateString()) return 'Hoy';
+        const ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+        if (d.toDateString() === ayer.toDateString()) return 'Ayer';
+        return d.toLocaleDateString('es-UY', { day: 'numeric', month: 'short' });
+    };
+
+    // Agrupar por fecha
+    const agrupados = [];
+    let fechaActual = null;
+    for (const m of mensajes) {
+        const f = formatFecha(m.fechaEnvio);
+        if (f !== fechaActual) {
+            agrupados.push({ type: 'sep', label: f });
+            fechaActual = f;
+        }
+        agrupados.push({ type: 'msg', data: m });
+    }
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: 'white' }}>
             {/* Header */}
-            <Box sx={{
-                px: 3, py: 1.75,
-                borderBottom: '1px solid #E2E8F0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                bgcolor: 'white',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-            }}>
-                <Box sx={{ position: 'relative' }}>
-                    <Avatar sx={{ bgcolor: '#2563EB', fontWeight: 700, width: 38, height: 38 }}>
-                        {usuario?.nombre?.[0]}{usuario?.apellido?.[0]}
-                    </Avatar>
-                    <Box sx={{
-                        width: 11, height: 11,
-                        bgcolor: dotColor,
-                        border: '2px solid white',
-                        borderRadius: '50%',
-                        position: 'absolute',
-                        bottom: 0, right: 0,
-                    }} />
-                </Box>
-                <Box>
-                    <Typography fontWeight={600} fontSize={15} color="#1E293B">
-                        {usuario?.nombre} {usuario?.apellido}
-                    </Typography>
-                    <Typography variant="caption" color="#94A3B8">
-                        {usuario?.estado?.replace(/_/g, ' ') || ''}
-                    </Typography>
+            <Box sx={{ px: 3, py: 1.75, borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                <Tooltip title="Volver">
+                    <IconButton size="small" onClick={onVolver} sx={{ color: '#94A3B8', mr: 0.5 }}>
+                        <ArrowBackIcon fontSize="small" />
+                    </IconButton>
+                </Tooltip>
+                <Avatar sx={{ width: 36, height: 36, bgcolor: esGrupo ? '#7C3AED' : '#2563EB', fontWeight: 700, fontSize: 13, borderRadius: esGrupo ? 1.5 : '50%' }}>
+                    {esGrupo ? <GroupsIcon sx={{ fontSize: 18 }} /> : nombre?.[0]}
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                    <Typography fontWeight={600} fontSize={15} color="#1E293B">{nombre}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: wsConectado ? '#22C55E' : '#94A3B8' }} />
+                        <Typography variant="caption" color="#94A3B8">
+                            {wsConectado ? 'Conectado' : 'Reconectando...'}
+                        </Typography>
+                    </Box>
                 </Box>
             </Box>
 
@@ -127,53 +164,50 @@ crearChat(usuario.id, comunidadId, token)
                     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
                         <CircularProgress size={28} sx={{ color: '#2563EB' }} />
                     </Box>
-                ) : mensajes.length === 0 ? (
+                ) : agrupados.length === 0 ? (
                     <Box sx={{ textAlign: 'center', mt: 10 }}>
-                        <Typography variant="body2" color="#94A3B8">
-                            Aún no hay mensajes. ¡Empezá la conversación!
-                        </Typography>
+                        <Typography variant="body2" color="#94A3B8">Aún no hay mensajes. ¡Empezá la conversación!</Typography>
                     </Box>
                 ) : (
                     <>
-                        {mensajes.map((m, i) => {
-                            const propio = esPropio(m);
+                        {agrupados.map((item, i) => {
+                            if (item.type === 'sep') return (
+                                <Box key={`sep-${i}`} sx={{ display: 'flex', alignItems: 'center', gap: 2, my: 2 }}>
+                                    <Box sx={{ flex: 1, height: 1, bgcolor: '#E2E8F0' }} />
+                                    <Typography fontSize={11} color="#94A3B8" fontWeight={500}>{item.label}</Typography>
+                                    <Box sx={{ flex: 1, height: 1, bgcolor: '#E2E8F0' }} />
+                                </Box>
+                            );
+                            const m = item.data;
+                            const propio = m.emisorId === usuarioActual?.id;
                             return (
-                                <Box key={m.id ?? i} sx={{
-                                    display: 'flex',
-                                    justifyContent: propio ? 'flex-end' : 'flex-start',
-                                    alignItems: 'flex-end',
-                                    gap: 1,
-                                    mb: 1.5,
-                                }}>
+                                <Box key={m.id ?? m._key ?? i} sx={{ display: 'flex', justifyContent: propio ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 1, mb: 1.5 }}>
                                     {!propio && (
-                                        <Avatar sx={{
-                                            width: 26, height: 26, fontSize: 10,
-                                            fontWeight: 700, bgcolor: '#334155', mb: 0.25,
-                                        }}>
-                                            {usuario?.nombre?.[0]}{usuario?.apellido?.[0]}
+                                        <Avatar sx={{ width: 26, height: 26, fontSize: 10, fontWeight: 700, bgcolor: '#334155', mb: 0.25, flexShrink: 0 }}>
+                                            {m.emisorNombre?.[0] || '?'}
                                         </Avatar>
                                     )}
                                     <Box sx={{ maxWidth: '65%' }}>
+                                        {esGrupo && !propio && (
+                                            <Typography fontSize={11} fontWeight={600} color="#64748B" sx={{ mb: 0.25, px: 0.5 }}>
+                                                {m.emisorNombre} {m.emisorApellido}
+                                            </Typography>
+                                        )}
                                         <Box sx={{
                                             px: 2, py: 1,
                                             bgcolor: propio ? '#2563EB' : 'white',
                                             color: propio ? 'white' : '#1E293B',
                                             borderRadius: propio ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
                                             boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+                                            opacity: m._optimista ? 0.75 : 1,
                                         }}>
-                                            <Typography variant="body2" sx={{ lineHeight: 1.55, fontSize: 14 }}>
+                                            <Typography variant="body2" sx={{ lineHeight: 1.55, fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                                 {m.contenido}
                                             </Typography>
                                         </Box>
-                                        <Typography variant="caption" sx={{
-                                            display: 'block',
-                                            color: '#94A3B8',
-                                            fontSize: 11,
-                                            mt: 0.4,
-                                            textAlign: propio ? 'right' : 'left',
-                                            px: 0.5,
-                                        }}>
+                                        <Typography variant="caption" sx={{ display: 'block', color: '#94A3B8', fontSize: 11, mt: 0.4, textAlign: propio ? 'right' : 'left', px: 0.5 }}>
                                             {formatHora(m.fechaEnvio)}
+                                            {m._optimista && ' · enviando...'}
                                         </Typography>
                                     </Box>
                                 </Box>
@@ -186,40 +220,21 @@ crearChat(usuario.id, comunidadId, token)
 
             {/* Input */}
             <Box sx={{ px: 3, py: 2, bgcolor: 'white', borderTop: '1px solid #E2E8F0' }}>
-                <Box sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    bgcolor: '#F1F5F9',
-                    borderRadius: 3,
-                    px: 2,
-                    py: 0.5,
-                    border: '1px solid #E2E8F0',
-                }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#F1F5F9', borderRadius: 3, px: 2, py: 0.5, border: '1px solid #E2E8F0' }}>
                     <TextField
+                        inputRef={inputRef}
                         fullWidth
-                        placeholder={`Mensaje a ${usuario?.nombre}...`}
+                        placeholder={`Mensaje en ${nombre}...`}
                         value={mensaje}
                         onChange={e => setMensaje(e.target.value)}
-                        onKeyPress={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } }}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } }}
                         variant="standard"
+                        multiline maxRows={4}
                         InputProps={{ disableUnderline: true }}
-                        sx={{ '& input': { py: 1, fontSize: 14, color: '#1E293B' } }}
+                        sx={{ '& .MuiInputBase-input': { py: 1, fontSize: 14, color: '#1E293B' } }}
                     />
-                    <IconButton
-                        onClick={enviar}
-                        disabled={!mensaje.trim()}
-                        size="small"
-                        sx={{
-                            width: 34, height: 34,
-                            bgcolor: mensaje.trim() ? '#2563EB' : 'transparent',
-                            color: mensaje.trim() ? 'white' : '#CBD5E1',
-                            '&:hover': { bgcolor: mensaje.trim() ? '#1D4ED8' : 'transparent' },
-                            '&.Mui-disabled': { bgcolor: 'transparent', color: '#CBD5E1' },
-                            transition: 'all 0.15s',
-                            flexShrink: 0,
-                        }}
-                    >
+                    <IconButton onClick={enviar} disabled={!mensaje.trim()} size="small"
+                        sx={{ width: 34, height: 34, bgcolor: mensaje.trim() ? '#2563EB' : 'transparent', color: mensaje.trim() ? 'white' : '#CBD5E1', '&:hover': { bgcolor: mensaje.trim() ? '#1D4ED8' : 'transparent' }, '&.Mui-disabled': { bgcolor: 'transparent', color: '#CBD5E1' }, transition: 'all 0.15s', flexShrink: 0 }}>
                         <SendIcon sx={{ fontSize: 17 }} />
                     </IconButton>
                 </Box>

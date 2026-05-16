@@ -16,7 +16,7 @@ function colorPorNombre(nombre) {
     return COLORES[hash % COLORES.length];
 }
 
-export default function PantallaComunidades({ token, usuarioActual, onEntrarComunidad }) {
+export default function PantallaComunidades({ token, usuarioActual, onEntrarComunidad, refresh }) {
     const [comunidades, setComunidades] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [dialogCrear, setDialogCrear] = useState(false);
@@ -24,7 +24,7 @@ export default function PantallaComunidades({ token, usuarioActual, onEntrarComu
 
     useEffect(() => {
         cargarComunidades();
-    }, [token]);
+    }, [token, refresh]);
 
     const cargarComunidades = () => {
         setCargando(true);
