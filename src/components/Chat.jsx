@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Typography, TextField, IconButton, Avatar, CircularProgress, Tooltip, Badge } from '@mui/material';
+import { Box, Typography, TextField, IconButton, Avatar, CircularProgress, Tooltip, InputAdornment, Chip, MenuItem, Collapse, Badge } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GroupsIcon from '@mui/icons-material/Groups';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
+import TuneIcon from '@mui/icons-material/Tune';
 import { getMensajes } from '../services/api';
 
 const WS_URL = 'ws://localhost:8080/appchat/chat';
@@ -12,6 +15,8 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
     const [mensajes, setMensajes] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [wsConectado, setWsConectado] = useState(false);
+    const [filtros, setFiltros] = useState({ contenido: '', fecha: '', usuario: '' });
+    const [buscadorAbierto, setBuscadorAbierto] = useState(false);
     const wsRef = useRef(null);
     const bottomRef = useRef(null);
     const inputRef = useRef(null);
@@ -123,10 +128,47 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
         return d.toLocaleDateString('es-UY', { day: 'numeric', month: 'short' });
     };
 
+    const obtenerFechaISO = (f) => {
+        if (!f) return '';
+        const d = new Date(f);
+        if (Number.isNaN(d.getTime())) return '';
+        return d.toISOString().slice(0, 10);
+    };
+
+    const usuariosUnicos = Array.from(
+        new Map(
+            mensajes
+                .filter(m => m.emisorId)
+                .map(m => [
+                    m.emisorId,
+                    {
+                        id: m.emisorId,
+                        nombre: `${m.emisorNombre ?? ''} ${m.emisorApellido ?? ''}`.trim() || m.emisorEmail || 'Usuario',
+                    },
+                ])
+        ).values()
+    );
+
+    const mensajesFiltrados = mensajes.filter((m) => {
+        const contenido = filtros.contenido.trim().toLowerCase();
+        const usuario = filtros.usuario.trim();
+        const fecha = filtros.fecha;
+        const textoMensaje = `${m.contenido ?? ''}`.toLowerCase();
+        const textoUsuario = `${m.emisorNombre ?? ''} ${m.emisorApellido ?? ''} ${m.emisorEmail ?? ''} ${m.emisorId ?? ''}`.toLowerCase();
+
+        if (contenido && !textoMensaje.includes(contenido)) return false;
+        if (usuario && String(m.emisorId ?? '') !== usuario) return false;
+        if (fecha && obtenerFechaISO(m.fechaEnvio) !== fecha) return false;
+        if (!usuario && filtros.usuario.trim() && !textoUsuario.includes(usuario)) return false;
+        return true;
+    });
+
+    const filtrosActivos = [filtros.contenido, filtros.fecha, filtros.usuario].filter(Boolean).length;
+
     // Agrupar por fecha
     const agrupados = [];
     let fechaActual = null;
-    for (const m of mensajes) {
+    for (const m of mensajesFiltrados) {
         const f = formatFecha(m.fechaEnvio);
         if (f !== fechaActual) {
             agrupados.push({ type: 'sep', label: f });
@@ -156,17 +198,108 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                         </Typography>
                     </Box>
                 </Box>
+                <Tooltip title="Filtros">
+                    <IconButton size="small" onClick={() => setBuscadorAbierto(b => !b)} sx={{ color: '#94A3B8' }}>
+                        <Badge color="primary" badgeContent={filtrosActivos} invisible={filtrosActivos === 0}>
+                            <TuneIcon />
+                        </Badge>
+                    </IconButton>
+                </Tooltip>
             </Box>
 
             {/* Mensajes */}
-            <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, bgcolor: '#F8FAFC' }}>
+            <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, bgcolor: '#F8FAFC', position: 'relative' }}>
+                <Collapse in={buscadorAbierto} timeout={200} unmountOnExit>
+                    <Box sx={{ position: 'absolute', top: 12, right: 24, zIndex: 40, width: { xs: 'calc(100% - 48px)', sm: 360 }, p: 1.25, bgcolor: 'white', border: '1px solid #E2E8F0', borderRadius: 2, boxShadow: '0 8px 20px rgba(2,6,23,0.08)' }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0,1fr)' }, gap: 1 }}>
+                            <TextField
+                                fullWidth
+                                size="small"
+                                placeholder="Buscar por contenido"
+                                value={filtros.contenido}
+                                onChange={e => setFiltros(prev => ({ ...prev, contenido: e.target.value }))}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <SearchIcon sx={{ fontSize: 18, color: '#94A3B8' }} />
+                                        </InputAdornment>
+                                    ),
+                                }}
+                                sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F8FAFC', borderRadius: 2 } }}
+                            />
+                            <TextField
+                                fullWidth
+                                size="small"
+                                type="date"
+                                label="Fecha"
+                                InputLabelProps={{ shrink: true }}
+                                value={filtros.fecha}
+                                onChange={e => setFiltros(prev => ({ ...prev, fecha: e.target.value }))}
+                                sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F8FAFC', borderRadius: 2 } }}
+                            />
+                            <TextField
+                                fullWidth
+                                size="small"
+                                select
+                                label="Usuario"
+                                value={filtros.usuario}
+                                onChange={e => setFiltros(prev => ({ ...prev, usuario: e.target.value }))}
+                                sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F8FAFC', borderRadius: 2 } }}
+                            >
+                                <MenuItem value="">Todos los usuarios</MenuItem>
+                                {usuariosUnicos.map(usuario => (
+                                    <MenuItem key={usuario.id} value={String(usuario.id)}>
+                                        {usuario.nombre}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                        </Box>
+                        {(filtros.contenido || filtros.fecha || filtros.usuario) && (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.25 }}>
+                                {filtros.contenido && (
+                                    <Chip
+                                        label={`Contenido: ${filtros.contenido}`}
+                                        size="small"
+                                        onDelete={() => setFiltros(prev => ({ ...prev, contenido: '' }))}
+                                    />
+                                )}
+                                {filtros.fecha && (
+                                    <Chip
+                                        label={`Fecha: ${filtros.fecha}`}
+                                        size="small"
+                                        onDelete={() => setFiltros(prev => ({ ...prev, fecha: '' }))}
+                                    />
+                                )}
+                                {filtros.usuario && (
+                                    <Chip
+                                        label={`Usuario: ${usuariosUnicos.find(u => String(u.id) === filtros.usuario)?.nombre || filtros.usuario}`}
+                                        size="small"
+                                        onDelete={() => setFiltros(prev => ({ ...prev, usuario: '' }))}
+                                    />
+                                )}
+                                <Chip
+                                    icon={<ClearIcon />}
+                                    label="Limpiar filtros"
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => setFiltros({ contenido: '', fecha: '', usuario: '' })}
+                                />
+                            </Box>
+                        )}
+                    </Box>
+                </Collapse>
+
                 {cargando ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
                         <CircularProgress size={28} sx={{ color: '#2563EB' }} />
                     </Box>
                 ) : agrupados.length === 0 ? (
                     <Box sx={{ textAlign: 'center', mt: 10 }}>
-                        <Typography variant="body2" color="#94A3B8">Aún no hay mensajes. ¡Empezá la conversación!</Typography>
+                        <Typography variant="body2" color="#94A3B8">
+                            {mensajes.length === 0
+                                ? 'Aún no hay mensajes. ¡Empezá la conversación!'
+                                : 'No hay resultados para los filtros actuales.'}
+                        </Typography>
                     </Box>
                 ) : (
                     <>
