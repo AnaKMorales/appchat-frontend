@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     Box, Typography, TextField, Button, Avatar,
     Select, MenuItem, FormControl, InputLabel,
@@ -6,7 +6,10 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { editarUsuario, cambiarEstado } from '../services/api';
+
+const BASE_URL = 'http://localhost:8080/appchat/api';
 
 const ESTADOS = [
     { value: 'EN_LINEA',     label: 'En línea',    color: '#22C55E' },
@@ -21,26 +24,77 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
     const [estado, setEstado] = useState('EN_LINEA');
     const [editando, setEditando] = useState(false);
     const [guardando, setGuardando] = useState(false);
+    const [subiendoFoto, setSubiendoFoto] = useState(false);
     const [mensaje, setMensaje] = useState(null);
+    const [fotoPreview, setFotoPreview] = useState(null);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         if (usuarioActual) {
             setNombre(usuarioActual.nombre || '');
             setApellido(usuarioActual.apellido || '');
             setEstado(usuarioActual.estado || 'EN_LINEA');
+            setFotoPreview(usuarioActual.fotoPerfil || null);
         }
     }, [usuarioActual]);
+
+    const handleFotoSeleccionada = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // validar formato
+        if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+            setMensaje({ tipo: 'error', texto: 'Solo se permiten imágenes JPG, PNG, GIF o WEBP' });
+            return;
+        }
+
+        // validar tamaño (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            setMensaje({ tipo: 'error', texto: 'La imagen no puede superar 5MB' });
+            return;
+        }
+
+        // preview local inmediato
+        const reader = new FileReader();
+        reader.onload = (ev) => setFotoPreview(ev.target.result);
+        reader.readAsDataURL(file);
+
+        // subir al servidor
+        setSubiendoFoto(true);
+        setMensaje(null);
+        try {
+            const formData = new FormData();
+            formData.append('foto', file);
+
+            const response = await fetch(`${BASE_URL}/usuarios/${usuarioActual.id}/foto`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+
+            if (!response.ok) throw new Error('Error al subir');
+
+            const data = await response.json();
+            setFotoPreview(`http://localhost:8080${data.url}`);
+            setMensaje({ tipo: 'success', texto: 'Foto actualizada correctamente' });
+            if (onActualizar) onActualizar({ ...usuarioActual, fotoPerfil: `http://localhost:8080${data.url}` });
+        } catch {
+            setMensaje({ tipo: 'error', texto: 'Error al subir la foto' });
+            setFotoPreview(usuarioActual?.fotoPerfil || null);
+        } finally {
+            setSubiendoFoto(false);
+        }
+    };
 
     const guardar = async () => {
         if (!usuarioActual) return;
         setGuardando(true);
         setMensaje(null);
         try {
-            // fotoPerfil es @NotBlank en el backend, mandamos string vacío si no hay
             const updated = await editarUsuario(usuarioActual.id, {
                 nombre,
                 apellido,
-                fotoPerfil: usuarioActual.fotoPerfil || ''
+                fotoPerfil: fotoPreview || ''
             }, token);
             await cambiarEstado(usuarioActual.id, estado, token);
             setMensaje({ tipo: 'success', texto: 'Perfil actualizado correctamente' });
@@ -58,6 +112,7 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
             setNombre(usuarioActual.nombre || '');
             setApellido(usuarioActual.apellido || '');
             setEstado(usuarioActual.estado || 'EN_LINEA');
+            setFotoPreview(usuarioActual.fotoPerfil || null);
         }
         setEditando(false);
         setMensaje(null);
@@ -67,11 +122,7 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
 
     return (
         <Box sx={{ height: '100%', bgcolor: '#F8FAFC', overflow: 'auto' }}>
-            <Box sx={{
-                px: 3, py: 2, bgcolor: 'white', borderBottom: '1px solid #E2E8F0',
-                display: 'flex', alignItems: 'center', gap: 2,
-                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-            }}>
+            <Box sx={{ px: 3, py: 2, bgcolor: 'white', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 2, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                 <IconButton onClick={onVolver} size="small" sx={{ color: '#64748B' }}>
                     <ArrowBackIcon fontSize="small" />
                 </IconButton>
@@ -79,17 +130,49 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
             </Box>
 
             <Box sx={{ maxWidth: 480, mx: 'auto', p: 4 }}>
-                {/* Avatar */}
+                {/* Avatar con botón de cambio de foto */}
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4, gap: 1.5 }}>
                     <Box sx={{ position: 'relative' }}>
-                        <Avatar sx={{ width: 80, height: 80, fontSize: 28, fontWeight: 700, bgcolor: '#2563EB', boxShadow: '0 4px 14px rgba(37,99,235,0.3)' }}>
-                            {nombre?.[0]}{apellido?.[0]}
+                        <Avatar
+                            src={fotoPreview || undefined}
+                            sx={{ width: 90, height: 90, fontSize: 32, fontWeight: 700, bgcolor: '#2563EB', boxShadow: '0 4px 14px rgba(37,99,235,0.3)' }}
+                        >
+                            {!fotoPreview && `${nombre?.[0] || ''}${apellido?.[0] || ''}`}
                         </Avatar>
-                        <Box sx={{ width: 14, height: 14, bgcolor: estadoActual.color, border: '3px solid white', borderRadius: '50%', position: 'absolute', bottom: 3, right: 3 }} />
+                        <Box sx={{ width: 16, height: 16, bgcolor: estadoActual.color, border: '3px solid white', borderRadius: '50%', position: 'absolute', bottom: 4, right: 4 }} />
+
+                        {/* Botón subir foto */}
+                        <IconButton
+                            size="small"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={subiendoFoto}
+                            sx={{
+                                position: 'absolute', bottom: -4, left: -4,
+                                width: 28, height: 28,
+                                bgcolor: 'white', border: '2px solid #E2E8F0',
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                                '&:hover': { bgcolor: '#F1F5F9' }
+                            }}
+                        >
+                            {subiendoFoto
+                                ? <CircularProgress size={12} sx={{ color: '#2563EB' }} />
+                                : <PhotoCameraIcon sx={{ fontSize: 13, color: '#64748B' }} />
+                            }
+                        </IconButton>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            style={{ display: 'none' }}
+                            onChange={handleFotoSeleccionada}
+                        />
                     </Box>
                     <Box sx={{ textAlign: 'center' }}>
                         <Typography fontWeight={700} fontSize={18} color="#1E293B">{nombre} {apellido}</Typography>
                         <Typography variant="body2" color="#64748B">@{usuarioActual?.username}</Typography>
+                        <Typography variant="caption" color="#94A3B8" sx={{ display: 'block', mt: 0.5 }}>
+                            Click en la cámara para cambiar tu foto
+                        </Typography>
                     </Box>
                 </Box>
 
