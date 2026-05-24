@@ -132,6 +132,7 @@ export default function Layout({ token, usuarioActual, setUsuarioActual, onLogou
 
     const chatsDirectos = chats.filter(c => c.tipo === 'DIRECTO');
     const chatsGrupo    = chats.filter(c => c.tipo === 'GRUPO');
+    const chatsCanal = chats.filter(c => c.tipo === 'CANAL');
 
     return (
         <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: T.bgSurface }}>
@@ -258,6 +259,28 @@ export default function Layout({ token, usuarioActual, setUsuarioActual, onLogou
                                     })}
                                 />
                             ))}
+
+                            <Divider sx={{ borderColor: T.border, mx: 2, my: 1 }} />
+
+                            <SectionLabel label="Canales de Comunicados" onAdd={() => setDlgNuevoGrupo(true)} tooltip="Nuevo canal" />
+
+                            {chatsCanal.length === 0 ? (
+                                <Typography fontSize={11} sx={{ color: T.textMuted, px: 2.5, pb: 1 }}>
+                                    Sin comunicados
+                                </Typography>
+                            ) : chatsCanal.map(c => (
+                                <ChatSidebarItem
+                                    key={c.id}
+                                    chat={c}
+                                    active={chatActivo?.chatId === c.id}
+                                    isGroup
+                                    onClick={() => irAChat({
+                                        chatId: c.id,
+                                        tipo: 'CANAL',
+                                        nombre: c.nombre || 'Canales'
+                                    })}
+                                />
+                            ))} 
 
                             <Divider sx={{ borderColor: T.border, mx: 2, my: 1 }} />
 
