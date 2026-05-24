@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Login({ onLogin }) {
     const navigate = useNavigate();
-    
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPass, setShowPass] = useState(false);
@@ -167,7 +167,7 @@ export default function Login({ onLogin }) {
           sx={{
             '& .MuiOutlinedInput-root': {
               bgcolor: 'white',
-              borderRadius: 3,
+              borderRadius: 1,
               transition: '0.2s',
 
               '& fieldset': {
@@ -223,7 +223,7 @@ export default function Login({ onLogin }) {
           sx={{
             '& .MuiOutlinedInput-root': {
               bgcolor: 'white',
-              borderRadius: 3,
+              borderRadius: 1,
               transition: '0.2s',
 
               '& fieldset': {

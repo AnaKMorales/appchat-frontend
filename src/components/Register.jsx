@@ -121,7 +121,7 @@ const handleSubmit = async (e) => {
             sx={{
               width: 74,
               height: 74,
-              borderRadius: '24px',
+              borderRadius: '40px',
               background:
                 'linear-gradient(135deg, #2563EB 0%, #4F46E5 100%)',
               display: 'flex',
@@ -374,7 +374,7 @@ const handleSubmit = async (e) => {
 const textFieldStyles = {
   '& .MuiOutlinedInput-root': {
     bgcolor: 'white',
-    borderRadius: 3,
+    borderRadius: 1,
 
     '& fieldset': {
       borderColor: '#E2E8F0',
