@@ -187,9 +187,12 @@ export default function PantallaComunidadDetalle({ token, usuarioActual, comunid
                                                 </Box>
                                             )}>
                                             <ListItemAvatar>
-                                                <Avatar sx={{ width: 38, height: 38, bgcolor: colorPorNombre(m.nombre), fontWeight: 700, fontSize: 13 }}>
-                                                    {m.nombre?.[0]}{m.apellido?.[0]}
-                                                </Avatar>
+                                                <Avatar 
+    src={m.fotoPerfil || undefined}
+    sx={{ width: 38, height: 38, bgcolor: colorPorNombre(m.nombre), fontWeight: 700, fontSize: 13 }}
+>
+    {!m.fotoPerfil && `${m.nombre?.[0]}${m.apellido?.[0]}`}
+</Avatar>
                                             </ListItemAvatar>
                                             <ListItemText
                                                 primary={

@@ -72,12 +72,16 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Error al subir');
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Error del servidor:', errorText);
+                throw new Error('Error al subir');
+            }
 
             const data = await response.json();
-            setFotoPreview(`http://localhost:8080${data.url}`);
+            setFotoPreview(data.url);
             setMensaje({ tipo: 'success', texto: 'Foto actualizada correctamente' });
-            if (onActualizar) onActualizar({ ...usuarioActual, fotoPerfil: `http://localhost:8080${data.url}` });
+            if (onActualizar) onActualizar({ ...usuarioActual, fotoPerfil: data.url });
         } catch {
             setMensaje({ tipo: 'error', texto: 'Error al subir la foto' });
             setFotoPreview(usuarioActual?.fotoPerfil || null);

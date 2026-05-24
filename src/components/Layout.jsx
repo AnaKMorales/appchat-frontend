@@ -286,9 +286,12 @@ export default function Layout({ token, usuarioActual, setUsuarioActual, onLogou
                     display: 'flex', alignItems: 'center', gap: 1.5,
                 }}>
                     <Box sx={{ position: 'relative', flexShrink: 0 }}>
-                        <Avatar sx={{ width: 36, height: 36, bgcolor: T.accent, fontSize: 13, fontWeight: 700, borderRadius: R }}>
-                            {usuarioActual?.nombre?.[0]}{usuarioActual?.apellido?.[0]}
-                        </Avatar>
+                        <Avatar 
+    src={usuarioActual?.fotoPerfil || undefined}
+    sx={{ width: 30, height: 30, bgcolor: '#2563EB', fontSize: 11, fontWeight: 700 }}
+>
+    {!usuarioActual?.fotoPerfil && `${usuarioActual?.nombre?.[0] || ''}${usuarioActual?.apellido?.[0] || ''}`}
+</Avatar>
                         <Box sx={{
                             width: 9, height: 9, bgcolor: statusColor,
                             border: `2px solid ${T.bg}`,
