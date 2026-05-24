@@ -14,6 +14,7 @@ import {
 
 import AddIcon from '@mui/icons-material/Add';
 import GroupsIcon from '@mui/icons-material/Groups';
+import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 
 import {
   getComunidades,
@@ -99,11 +100,6 @@ export default function PantallaComunidades({
         minHeight: '100vh',
 
         bgcolor: '#F4F7FB',
-
-        background: `
-          radial-gradient(circle at top left, rgba(37,99,235,0.10), transparent 25%),
-          radial-gradient(circle at bottom right, rgba(79,70,229,0.10), transparent 25%)
-        `,
 
         display: 'flex',
         flexDirection: 'column',
