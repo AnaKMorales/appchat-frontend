@@ -498,75 +498,6 @@ export default function Layout({
                             </IconButton>
                         </Box>
 
-<<<<<<< HEAD
-                            <Divider sx={{ borderColor: T.border, mx: 2, my: 1 }} />
-
-                            <SectionLabel label="Grupos" onAdd={() => setDlgNuevoGrupo(true)} tooltip="Nuevo grupo" />
-                            {chatsGrupo.length === 0 ? (
-                                <Typography fontSize={11} sx={{ color: T.textMuted, px: 2.5, pb: 1 }}>
-                                    Sin grupos
-                                </Typography>
-                            ) : chatsGrupo.map(c => (
-                                <ChatSidebarItem
-                                    key={c.id}
-                                    chat={c}
-                                    active={chatActivo?.chatId === c.id}
-                                    isGroup
-                                    onClick={() => irAChat({ chatId: c.id, tipo: 'GRUPO', nombre: c.nombre || 'Grupo' })}
-                                />
-                            ))}
-                        </>
-                    )}
-                </Box>
-
-                {/* Footer — usuario */}
-                <Box sx={{
-                    px: 2, py: 1.75,
-                    borderTop: `1px solid ${T.border}`,
-                    display: 'flex', alignItems: 'center', gap: 1.5,
-                }}>
-                    <Box sx={{ position: 'relative', flexShrink: 0 }}>
-                        <Avatar 
-    src={usuarioActual?.fotoPerfil || undefined}
-    sx={{ width: 30, height: 30, bgcolor: '#2563EB', fontSize: 11, fontWeight: 700 }}
->
-    {!usuarioActual?.fotoPerfil && `${usuarioActual?.nombre?.[0] || ''}${usuarioActual?.apellido?.[0] || ''}`}
-</Avatar>
-                        <Box sx={{
-                            width: 9, height: 9, bgcolor: statusColor,
-                            border: `2px solid ${T.bg}`,
-                            borderRadius: '50%', position: 'absolute', bottom: -1, right: -1,
-                        }} />
-                    </Box>
-
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography fontSize={13} fontWeight={600} color={T.textPrimary} noWrap>
-                            {usuarioActual ? `${usuarioActual.nombre} ${usuarioActual.apellido}` : '...'}
-                        </Typography>
-                        <Typography fontSize={11} sx={{ color: T.textMuted }} noWrap>
-                            {usuarioActual?.estado?.replace('_', ' ') || ''}
-                        </Typography>
-                    </Box>
-
-                    <Notificaciones
-                        token={token}
-                        onInvitacionAceptada={handleInvitacionAceptada}
-                        chatActivoId={chatActivo?.chatId}
-                    />
-                    <Tooltip title="Mi perfil">
-                        <IconButton size="small" onClick={() => setPantalla('perfil')}
-                            sx={{ color: T.textMuted, '&:hover': { color: T.textPrimary, bgcolor: T.bgHover }, p: 0.5, borderRadius: R }}>
-                            <AccountCircleIcon sx={{ fontSize: 18 }} />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Cerrar sesión">
-                        <IconButton size="small" onClick={onLogout}
-                            sx={{ color: T.textMuted, '&:hover': { color: '#EF4444', bgcolor: '#FEF2F2' }, p: 0.5, borderRadius: R }}>
-                            <LogoutIcon sx={{ fontSize: 18 }} />
-                        </IconButton>
-                    </Tooltip>
-                </Box>
-=======
                         {chatsGrupo.map((c) => (
                             <ChatSidebarItem
                                 key={c.id}
@@ -587,7 +518,6 @@ export default function Layout({
                         ))}
                     </>
                 )}
->>>>>>> c34bcc1 (detalles)
             </Box>
 
             {/* FOOTER */}
