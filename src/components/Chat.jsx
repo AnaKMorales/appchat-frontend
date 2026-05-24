@@ -186,8 +186,20 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                         <ArrowBackIcon fontSize="small" />
                     </IconButton>
                 </Tooltip>
-                <Avatar sx={{ width: 36, height: 36, bgcolor: esGrupo ? '#7C3AED' : '#2563EB', fontWeight: 700, fontSize: 13, borderRadius: esGrupo ? 1.5 : '50%' }}>
-                    {esGrupo ? <GroupsIcon sx={{ fontSize: 18 }} /> : nombre?.[0]}
+                <Avatar
+                    sx={{
+                        width: 36,
+                        height: 36,
+                        bgcolor: '#2563EB',
+                        color: '#FFFFFF',
+                        fontWeight: 700,
+                        fontSize: 13,
+                        borderRadius: '50%',
+                    }}
+                >
+                    {esGrupo
+                        ? <GroupsIcon sx={{ fontSize: 18, color: '#FFFFFF' }} />
+                        : nombre?.[0]}
                 </Avatar>
                 <Box sx={{ flex: 1 }}>
                     <Typography fontWeight={600} fontSize={15} color="#1E293B">{nombre}</Typography>

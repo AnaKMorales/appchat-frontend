@@ -14,7 +14,6 @@ import {
 
 import AddIcon from '@mui/icons-material/Add';
 import GroupsIcon from '@mui/icons-material/Groups';
-import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 
 import {
   getComunidades,
@@ -211,7 +210,7 @@ export default function PantallaComunidades({
 
                     mb: 2.2,
 
-                    borderRadius: 3,
+                    borderRadius: '50%',
 
                     bgcolor: '#2563EB',
 
