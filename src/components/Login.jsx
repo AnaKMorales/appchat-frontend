@@ -9,7 +9,11 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 
+import { useNavigate } from 'react-router-dom';
+
 export default function Login({ onLogin }) {
+    const navigate = useNavigate();
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPass, setShowPass] = useState(false);
@@ -40,135 +44,273 @@ export default function Login({ onLogin }) {
     };
 
     return (
-        <Box sx={{ display: 'flex', height: '100vh' }}>
-            {/* Panel izquierdo - branding */}
-            <Box sx={{
-                width: { xs: 0, md: '45%' },
-                display: { xs: 'none', md: 'flex' },
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                bgcolor: '#1E2A38',
-                p: 6,
-                gap: 3,
-            }}>
-                <Box sx={{
-                    width: 72, height: 72, borderRadius: 3,
-                    bgcolor: '#2563EB',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                    <ChatBubbleIcon sx={{ color: 'white', fontSize: 36 }} />
-                </Box>
-                <Typography variant="h4" fontWeight={700} color="white" textAlign="center">
-                    Chat Empresarial
-                </Typography>
-                <Typography sx={{ color: 'rgba(255,255,255,0.55)', textAlign: 'center', maxWidth: 300, lineHeight: 1.7 }}>
-                    Comunicación simple y efectiva para tu equipo
-                </Typography>
-                <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', gap: 2, width: '100%', maxWidth: 280 }}>
-                    {['Mensajes en tiempo real', 'Búsqueda de usuarios', 'Gestión de estado'].map(f => (
-                        <Box key={f} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#2563EB', flexShrink: 0 }} />
-                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.6)' }}>{f}</Typography>
-                        </Box>
-                    ))}
-                </Box>
-            </Box>
+    <Box
+        sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 3,
+        bgcolor: '#F4F7FB',
 
-            {/* Panel derecho - formulario */}
-            <Box sx={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                bgcolor: '#F8FAFC',
-                p: 3,
-            }}>
-                <Box sx={{ width: '100%', maxWidth: 400 }}>
-                    {/* Logo mobile */}
-                    <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.5, mb: 4 }}>
-                        <Box sx={{ width: 40, height: 40, borderRadius: 2, bgcolor: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <ChatBubbleIcon sx={{ color: 'white', fontSize: 20 }} />
-                        </Box>
-                        <Typography variant="h6" fontWeight={700} color="#1E2A38">Chat Empresarial</Typography>
-                    </Box>
-
-                    <Typography variant="h5" fontWeight={700} color="#1E2A38" mb={0.5}>
-                        Bienvenido de vuelta
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" mb={4}>
-                        Iniciá sesión para continuar
-                    </Typography>
-
-                    {error && (
-                        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError('')}>
-                            {error}
-                        </Alert>
-                    )}
-
-                    <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                        <TextField
-                            label="Email"
-                            type="email"
-                            value={email}
-                            onChange={e => setEmail(e.target.value)}
-                            required
-                            fullWidth
-                            autoFocus
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <EmailIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
-                                    </InputAdornment>
-                                ),
-                            }}
-                            sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 2 } }}
-                        />
-                        <TextField
-                            label="Contraseña"
-                            type={showPass ? 'text' : 'password'}
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                            required
-                            fullWidth
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <LockIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
-                                    </InputAdornment>
-                                ),
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton onClick={() => setShowPass(!showPass)} edge="end" size="small">
-                                            {showPass ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
-                            sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white', borderRadius: 2 } }}
-                        />
-                        <Button
-                            type="submit"
-                            variant="contained"
-                            fullWidth
-                            size="large"
-                            disabled={cargando}
-                            sx={{
-                                py: 1.5,
-                                borderRadius: 2,
-                                fontSize: 15,
-                                fontWeight: 600,
-                                bgcolor: '#2563EB',
-                                '&:hover': { bgcolor: '#1D4ED8' },
-                                boxShadow: '0 4px 14px rgba(37,99,235,0.35)',
-                                mt: 0.5,
-                            }}
-                        >
-                            {cargando ? <CircularProgress size={22} color="inherit" /> : 'Iniciar sesión'}
-                        </Button>
-                    </Box>
-                </Box>
-            </Box>
+        background: `
+            radial-gradient(circle at top left, rgba(37,99,235,0.10), transparent 25%),
+            radial-gradient(circle at bottom right, rgba(79,70,229,0.10), transparent 25%)
+        `,
+        }}
+    >
+    <Box
+      sx={{
+        width: '100%',
+        maxWidth: 460,
+        bgcolor: 'rgba(255,255,255,0.78)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255,255,255,0.7)',
+        borderRadius: 1,
+        p: { xs: 4, md: 5 },
+        boxShadow: '0 25px 70px rgba(15,23,42,0.10)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          mb: 4,
+        }}
+      >
+        <Box
+          sx={{
+            width: 74,
+            height: 74,
+            borderRadius: '40px',
+            background:
+              'linear-gradient(135deg, #2563EB 0%, #4F46E5 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 10px 30px rgba(37,99,235,0.35)',
+            mb: 2,
+          }}
+        >
+          <ChatBubbleIcon sx={{ color: 'white', fontSize: 34 }} />
         </Box>
-    );
+
+        <Typography
+          variant="h4"
+          fontWeight={800}
+          color="#0F172A"
+          textAlign="center"
+        >
+          ¡Bienvenido!
+        </Typography>
+
+        <Typography
+          variant="body1"
+          sx={{
+            color: '#64748B',
+            mt: 1,
+            textAlign: 'center',
+            lineHeight: 1.6,
+            maxWidth: 320,
+          }}
+        >
+          Iniciá sesión para acceder a tu espacio de trabajo.
+        </Typography>
+      </Box>
+
+      {error && (
+        <Alert
+          severity="error"
+          sx={{
+            mb: 3,
+            borderRadius: 3,
+          }}
+          onClose={() => setError('')}
+        >
+          {error}
+        </Alert>
+      )}
+
+      <Box
+        component="form"
+        onSubmit={handleSubmit}
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2.5,
+        }}
+      >
+        <TextField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          fullWidth
+          autoFocus
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <EmailIcon
+                  sx={{
+                    color: '#94A3B8',
+                    fontSize: 20,
+                  }}
+                />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              bgcolor: 'white',
+              borderRadius: 1,
+              transition: '0.2s',
+
+              '& fieldset': {
+                borderColor: '#E2E8F0',
+              },
+
+              '&:hover fieldset': {
+                borderColor: '#2563EB',
+              },
+
+              '&.Mui-focused': {
+                boxShadow: '0 0 0 4px rgba(37,99,235,0.12)',
+              },
+            },
+          }}
+        />
+
+        <TextField
+          label="Contraseña"
+          type={showPass ? 'text' : 'password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          fullWidth
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <LockIcon
+                  sx={{
+                    color: '#94A3B8',
+                    fontSize: 20,
+                  }}
+                />
+              </InputAdornment>
+            ),
+
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => setShowPass(!showPass)}
+                  edge="end"
+                  size="small"
+                >
+                  {showPass ? (
+                    <VisibilityOff fontSize="small" />
+                  ) : (
+                    <Visibility fontSize="small" />
+                  )}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              bgcolor: 'white',
+              borderRadius: 1,
+              transition: '0.2s',
+
+              '& fieldset': {
+                borderColor: '#E2E8F0',
+              },
+
+              '&:hover fieldset': {
+                borderColor: '#2563EB',
+              },
+
+              '&.Mui-focused': {
+                boxShadow: '0 0 0 4px rgba(37,99,235,0.12)',
+              },
+            },
+          }}
+        />
+
+        <Button
+          type="submit"
+          variant="contained"
+          fullWidth
+          size="large"
+          disabled={cargando}
+          sx={{
+            py: 1.6,
+            borderRadius: 1,
+            fontSize: 15,
+            fontWeight: 700,
+            textTransform: 'none',
+            background:
+              'linear-gradient(135deg, #2563EB 0%, #4F46E5 100%)',
+            boxShadow: '0 10px 25px rgba(37,99,235,0.35)',
+            transition: '0.25s',
+
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: '0 14px 30px rgba(37,99,235,0.4)',
+            },
+          }}
+        >
+          {cargando ? (
+            <CircularProgress size={22} color="inherit" />
+          ) : (
+            'Iniciar sesión'
+          )}
+        </Button>
+
+        {/* Footer */}
+        <Box
+          sx={{
+            mt: 1,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 0.5,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#64748B',
+            }}
+          >
+            ¿No tienes cuenta?
+          </Typography>
+
+          <Typography
+            component="span"
+            onClick={() => navigate('/register')}
+            sx={{
+                fontWeight: 700,
+                color: '#2563EB',
+                cursor: 'pointer',
+                transition: '0.2s',
+
+                '&:hover': {
+                    color: '#1D4ED8',
+                    textDecoration: 'underline',
+                },
+            }}
+            >
+            Regístrate
+        </Typography>
+        </Box>
+      </Box>
+    </Box>
+  </Box>
+);
 }

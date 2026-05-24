@@ -195,3 +195,11 @@ export const rechazarInvitacion = async (invitacionId, token) => {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 };
+export const register = async (datos) => {
+    const response = await fetch(`${BASE_URL}/auth/registro`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datos)
+    });
+    return parseResponse(response);
+};
