@@ -17,12 +17,10 @@ import {
     invitarUsuario, salirComunidad, eliminarMiembroComunidad,
 } from '../services/api';
 
-const COLORES_AVATAR = ['#2563EB', '#7C3AED', '#059669', '#DC2626', '#D97706', '#DB2777'];
-function colorPorNombre(nombre) {
-    if (!nombre) return COLORES_AVATAR[0];
-    let h = 0; for (let i = 0; i < nombre.length; i++) h += nombre.charCodeAt(i);
-    return COLORES_AVATAR[h % COLORES_AVATAR.length];
+function colorPorNombre() {
+    return '#CBD5E1';
 }
+
 
 export default function PantallaComunidadDetalle({ token, usuarioActual, comunidad, onAbrirChat, onVolver, onComunidadActualizada, onChatsActualizados }) {
     const [detalle, setDetalle] = useState(null);
@@ -133,7 +131,7 @@ export default function PantallaComunidadDetalle({ token, usuarioActual, comunid
                 <>
                     {/* Header */}
                     <Box sx={{ px: 4, py: 3, bgcolor: 'white', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Avatar sx={{ width: 48, height: 48, bgcolor: colorPorNombre(detalle.nombre), fontSize: 20, fontWeight: 700, borderRadius: 2 }}>
+                        <Avatar sx={{ width: 48, height: 48, bgcolor: colorPorNombre(detalle.nombre), fontSize: 20, fontWeight: 700, borderRadius: '50%' }}>
                             {detalle.fotoUrl
                                 ? <img src={detalle.fotoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 : detalle.nombre?.[0]?.toUpperCase()
