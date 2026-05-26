@@ -532,14 +532,15 @@ export default function Layout({
                 }}
             >
                 <Avatar
-                    sx={{
-                        width: 48,
-                        height: 48,
-                        bgcolor: '#CBD5E1',
-                    }}
-                >
-                    {usuarioActual?.nombre?.[0]}
-                </Avatar>
+    src={usuarioActual?.fotoPerfil || undefined}
+    sx={{
+        width: 48,
+        height: 48,
+        bgcolor: '#CBD5E1',
+    }}
+>
+    {!usuarioActual?.fotoPerfil && usuarioActual?.nombre?.[0]}
+</Avatar>
 
                 <Box sx={{ flex: 1 }}>
                     <Typography
