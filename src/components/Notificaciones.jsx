@@ -8,7 +8,8 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import MessageIcon from '@mui/icons-material/Message';
 import { aceptarInvitacion, rechazarInvitacion } from '../services/api';
 
-const WS_URL = 'ws://localhost:8080/appchat/chat';
+import CONFIG from '../services/config';
+const WS_URL = CONFIG.WS_URL;
 
 const getInvitaciones = async (token) => {
     const r = await fetch('http://localhost:8080/appchat/api/comunidades/invitaciones/pendientes', {

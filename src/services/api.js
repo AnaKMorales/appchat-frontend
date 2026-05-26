@@ -1,4 +1,5 @@
-const BASE_URL = 'http://localhost:8080/appchat/api';
+import CONFIG from '../config';
+const BASE_URL = CONFIG.BASE_URL;
 
 async function parseResponse(response) {
     if (!response.ok) {

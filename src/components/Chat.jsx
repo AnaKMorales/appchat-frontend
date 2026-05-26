@@ -8,7 +8,9 @@ import ClearIcon from '@mui/icons-material/Clear';
 import TuneIcon from '@mui/icons-material/Tune';
 import { getMensajes } from '../services/api';
 
-const WS_URL = 'ws://localhost:8080/appchat/chat';
+import CONFIG from '../services/config';
+const WS_URL = CONFIG.WS_URL;
+
 
 export default function Chat({ token, chat, usuarioActual, onVolver }) {
     const [mensaje, setMensaje] = useState('');
