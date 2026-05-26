@@ -115,6 +115,38 @@ export const eliminarMiembroGrupo = async (chatId, userId, token) => {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 };
 
+export const fijarMensaje = async (chatId, mensajeId, token) => {
+    const response = await fetch(`${BASE_URL}/chat/${chatId}/mensajes/${mensajeId}/pin`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+};
+
+export const desfijarMensaje = async (chatId, mensajeId, token) => {
+    const response = await fetch(`${BASE_URL}/chat/${chatId}/mensajes/${mensajeId}/pin`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+};
+
+export const getMensajesFijados = async (chatId, token) => {
+    const response = await fetch(`${BASE_URL}/chat/${chatId}/mensajes/pin`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    return parseResponse(response);
+};
+
 // Comunidades
 export const getComunidades = async (token) => {
     const response = await fetch(`${BASE_URL}/comunidades`, {
