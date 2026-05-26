@@ -1,12 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Typography, TextField, IconButton, Avatar, CircularProgress, Tooltip, InputAdornment, Chip, MenuItem, Collapse, Badge, Stack } from '@mui/material';
+import { Box, Typography, TextField, IconButton, Avatar, CircularProgress, Tooltip, InputAdornment, Chip, MenuItem, Collapse, Badge, Stack, Snackbar, Alert } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GroupsIcon from '@mui/icons-material/Groups';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import ReplyIcon from '@mui/icons-material/Reply';
-import { getMensajes } from '../services/api';
+//import { getMensajes } from '../services/api';
+import PushPinIcon from '@mui/icons-material/PushPin';
+import {
+    getMensajes,
+    fijarMensaje,
+    desfijarMensaje,
+    getMensajesFijados
+} from '../services/api';
 
 
 import CONFIG from '../services/config';
@@ -87,9 +94,15 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
     const [filtros, setFiltros] = useState({ contenido: '', fecha: '', usuario: '' });
     const [buscadorAbierto, setBuscadorAbierto] = useState(false);
     const [replyTo, setReplyTo] = useState(null);
+    const [mensajesFijados, setMensajesFijados] = useState([]);
     const wsRef = useRef(null);
     const bottomRef = useRef(null);
     const inputRef = useRef(null);
+    const [notificacion, setNotificacion] = useState({
+        open: false,
+        mensaje: '',
+        severity: 'info'
+    });
 
     const { chatId, tipo, nombre } = chat;
     const esGrupo = tipo === 'GRUPO';
@@ -151,6 +164,12 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
             })
             .catch(() => {})
             .finally(() => setCargando(false));
+    
+        getMensajesFijados(chatId, token)
+            .then(data => {
+                setMensajesFijados(Array.isArray(data) ? data : []);
+            })
+            .catch(() => {});
 
         const ws = new WebSocket(`${WS_URL}?token=${token}`);
         wsRef.current = ws;
@@ -246,6 +265,47 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
             }));
         }
     }, [agregarReaccionLocal, usuarioActual]);
+
+    const togglePinMensaje = async (mensajeObjetivo) => {
+        if (!mensajeObjetivo?.id) return;
+
+        const yaFijado = mensajesFijados.some(m => m.mensajeId === mensajeObjetivo.id);
+
+        try {
+            if (yaFijado) {
+                await desfijarMensaje(chatId, mensajeObjetivo.id, token);
+
+                setMensajesFijados(prev =>
+                    prev.filter(m => m.mensajeId !== mensajeObjetivo.id)
+                );
+            } else {
+                await fijarMensaje(chatId, mensajeObjetivo.id, token);
+
+                const nuevos = await getMensajesFijados(chatId, token);
+                setMensajesFijados(Array.isArray(nuevos) ? nuevos : []);
+            }
+        } catch (e) {
+            console.error(e);
+
+            let mensaje = 'No se pudo realizar la acción.';
+            let severity = 'error';
+
+            if (e.message.includes('400')) {
+                mensaje = 'Solo se pueden fijar hasta 3 mensajes por chat.';
+            } else if (e.message.includes('403')) {
+                mensaje = 'No tienes permisos para fijar mensajes.';
+            } else if (e.message.includes('409')) {
+                mensaje = 'El mensaje ya está fijado.';
+                severity = 'warning';
+            }
+
+            setNotificacion({
+                open: true,
+                mensaje,
+                severity
+            });
+        }
+    };
 
     const formatHora = (f) =>
         f ? new Date(f).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -402,7 +462,60 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                     </IconButton>
                 </Tooltip>
             </Box>
+            {mensajesFijados.length > 0 && (
+                <Box
+                    sx={{
+                        mx: 2,
+                        mt: 1,
+                        mb: 1,
+                        px: 1.5,
+                        py: 1,
+                        bgcolor: '#FFF7ED',
+                        border: '1px solid #FED7AA',
+                        borderRadius: 2,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                    }}
+                >
+                    <Typography
+                        variant="caption"
+                        sx={{
+                            fontWeight: 700,
+                            color: '#C2410C',
+                            display: 'block',
+                            mb: 0.75
+                        }}
+                    >
+                        <PushPinIcon sx={{ fontSize: 15 }} /> {mensajesFijados.length} mensaje{mensajesFijados.length > 1 ? 's' : ''} fijado{mensajesFijados.length > 1 ? 's' : ''}
+                    </Typography>
 
+                    {mensajesFijados.map(pin => (
+                        <Box
+                            key={pin.mensajeId}
+                            sx={{
+                                px: 1,
+                                py: 0.75,
+                                mb: 0.5,
+                                bgcolor: 'white',
+                                borderRadius: 1.5,
+                                borderLeft: '3px solid #F59E0B'
+                            }}
+                        >
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    color: '#78350F',
+                                    fontSize: 13,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                }}
+                            >
+                                {pin.contenido}
+                            </Typography>
+                        </Box>
+                    ))}
+                </Box>
+            )}
             <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, bgcolor: '#F8FAFC', position: 'relative' }}>
                 <Collapse in={buscadorAbierto} timeout={200} unmountOnExit>
                     <Box sx={{ position: 'absolute', top: 12, right: 24, zIndex: 40, width: { xs: 'calc(100% - 48px)', sm: 360 }, p: 1.25, bgcolor: 'white', border: '1px solid #E2E8F0', borderRadius: 2, boxShadow: '0 8px 20px rgba(2,6,23,0.08)' }}>
@@ -583,6 +696,24 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                             <ReplyIcon sx={{ fontSize: 15 }} />
                                                         </IconButton>
                                                     </Tooltip>
+                                                    <Tooltip title="Fijar mensaje">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => togglePinMensaje(m)}
+                                                            sx={{
+                                                                color: mensajesFijados.some(p => p.mensajeId === m.id)
+                                                                    ? '#D97706'
+                                                                    : '#94A3B8',
+                                                                bgcolor: 'rgba(148,163,184,0.08)',
+                                                                '&:hover': {
+                                                                    bgcolor: 'rgba(217,119,6,0.08)',
+                                                                    color: '#D97706'
+                                                                }
+                                                            }}
+                                                        >
+                                                            <PushPinIcon sx={{ fontSize: 15 }} />
+                                                        </IconButton>
+                                                    </Tooltip>
                                                     {REACCIONES_RAPIDAS.map(emoji => (
                                                         <Tooltip key={`${m.id}-${emoji}`} title={`Reaccionar con ${emoji}`}>
                                                             <IconButton size="small" onClick={() => reaccionar(m, emoji)} sx={{ fontSize: 13, width: 28, height: 28, bgcolor: 'white', border: '1px solid #E2E8F0', '&:hover': { bgcolor: '#F8FAFC', borderColor: '#CBD5E1' } }}>
@@ -648,6 +779,20 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                     </IconButton>
                 </Box>
             </Box>
+            <Snackbar
+                open={notificacion.open}
+                autoHideDuration={3000}
+                onClose={() => setNotificacion(prev => ({ ...prev, open: false }))}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    severity={notificacion.severity}
+                    variant="filled"
+                    onClose={() => setNotificacion(prev => ({ ...prev, open: false }))}
+                >
+                    {notificacion.mensaje}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 }
