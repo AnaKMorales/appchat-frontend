@@ -301,6 +301,12 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                 setMensajesFijados(prev =>
                     prev.filter(m => m.mensajeId !== mensajeObjetivo.id)
                 );
+        
+                setNotificacion({
+                    open: true,
+                    mensaje: 'Mensaje desfijado',
+                    severity: 'success'
+                });
             } else {
                 await fijarMensaje(chatId, mensajeObjetivo.id, token);
 
@@ -312,6 +318,11 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
 
                 const nuevos = await getMensajesFijados(chatId, token);
                 setMensajesFijados(Array.isArray(nuevos) ? nuevos : []);
+                setNotificacion({
+                    open: true,
+                    mensaje: 'Mensaje fijado',
+                    severity: 'success'
+                });
             }
         } catch (e) {
             console.error(e);
@@ -784,7 +795,8 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                     transform: mensajeResaltadoId === m.id
                                                         ? 'scale(1.03)'
                                                         : 'scale(1)',
-
+                                                    position: 'relative',
+                                                    py: 1,
                                                     transition: 'all 0.25s ease',
                                                 }}>
                                                     <Typography variant="body2" sx={{ lineHeight: 1.55, fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -862,10 +874,32 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                     ))}
                                                 </Stack>
 
-                                                <Typography variant="caption" sx={{ display: 'block', color: '#94A3B8', fontSize: 11, mt: 0.4, textAlign: propio ? 'right' : 'left', px: 0.5 }}>
-                                                    {formatHora(m.fechaEnvio)}
-                                                    {m._optimista && ' · enviando...'}
-                                                </Typography>
+                                                <Box
+                                                    sx={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: propio ? 'flex-end' : 'flex-start',
+                                                        gap: 0.4,
+                                                        mt: 0.4,
+                                                        px: 0.5,
+                                                        color: '#94A3B8',
+                                                    }}
+                                                >
+                                                    {estaFijado && (
+                                                        <PushPinIcon
+                                                            sx={{
+                                                                fontSize: 12,
+                                                                color: '#94A3B8',
+                                                                transform: 'rotate(-20deg)',
+                                                            }}
+                                                        />
+                                                    )}
+
+                                                    <Typography variant="caption" sx={{ fontSize: 11, color: '#94A3B8' }}>
+                                                        {formatHora(m.fechaEnvio)}
+                                                        {m._optimista && ' · enviando...'}
+                                                    </Typography>
+                                                </Box>
                                             </Box>
                                         </Box>
                                     </Box>
