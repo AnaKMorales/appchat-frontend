@@ -350,7 +350,7 @@ const handleSubmit = async (e) => {
 
             <Typography
               component="span"
-              onClick={() => navigate('/login')}  // ← agregá esto
+              onClick={() => navigate('/login')}
               sx={{
                 fontWeight: 700,
                 color: '#2563EB',

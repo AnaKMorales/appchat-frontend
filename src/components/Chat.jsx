@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Typography, TextField, IconButton, Avatar, CircularProgress, Tooltip, InputAdornment, Chip, MenuItem, Collapse, Badge, Stack, Snackbar, Alert } from '@mui/material';
+import { Box, Typography, TextField, IconButton, Avatar, CircularProgress, Tooltip, InputAdornment, Chip, MenuItem, Collapse, Badge, Stack, Snackbar, Alert, Fade} from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GroupsIcon from '@mui/icons-material/Groups';
@@ -95,9 +95,15 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
     const [buscadorAbierto, setBuscadorAbierto] = useState(false);
     const [replyTo, setReplyTo] = useState(null);
     const [mensajesFijados, setMensajesFijados] = useState([]);
+    const [pinActualIndex, setPinActualIndex] = useState(0);
+    const [pinVisible, setPinVisible] = useState(true);
+    const [accionesMensajeId, setAccionesMensajeId] = useState(null);
     const wsRef = useRef(null);
     const bottomRef = useRef(null);
     const inputRef = useRef(null);
+    const [pinAnimadoId, setPinAnimadoId] = useState(null);
+    const mensajeRefs = useRef({});
+    const [mensajeResaltadoId, setMensajeResaltadoId] = useState(null);
     const [notificacion, setNotificacion] = useState({
         open: false,
         mensaje: '',
@@ -106,6 +112,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
 
     const { chatId, tipo, nombre } = chat;
     const esGrupo = tipo === 'GRUPO';
+    const pinActual = mensajesFijados[pinActualIndex] ?? null;
 
     const upsertMensaje = useCallback((incoming) => {
         if (!incoming) return;
@@ -208,6 +215,12 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [mensajes]);
+    
+    useEffect(() => {
+        if (pinActualIndex >= mensajesFijados.length) {
+            setPinActualIndex(0);
+        }
+    }, [mensajesFijados, pinActualIndex]);
 
     const enviar = useCallback(() => {
         const texto = mensaje.trim();
@@ -241,6 +254,16 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
             }
 
             wsRef.current.send(JSON.stringify(payload));
+            setTimeout(() => {
+                getMensajes(chatId, token)
+                    .then(h => {
+                        const lista = Array.isArray(h?.mensajes) ? h.mensajes : [];
+                        setMensajes(deduplicarMensajes(lista.map(m => ({
+                            ...m,
+                            reacciones: m.reacciones || []
+                        }))));
+                    });
+            }, 500);
         }
     }, [mensaje, chatId, usuarioActual, replyTo, upsertMensaje]);
 
@@ -281,6 +304,12 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
             } else {
                 await fijarMensaje(chatId, mensajeObjetivo.id, token);
 
+                setPinAnimadoId(mensajeObjetivo.id);
+
+                setTimeout(() => {
+                    setPinAnimadoId(null);
+                }, 700);
+
                 const nuevos = await getMensajesFijados(chatId, token);
                 setMensajesFijados(Array.isArray(nuevos) ? nuevos : []);
             }
@@ -305,6 +334,42 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                 severity
             });
         }
+    };
+    
+    const cambiarPin = (direccion) => {
+        if (mensajesFijados.length <= 1) return;
+
+        setPinVisible(false);
+
+        setTimeout(() => {
+            setPinActualIndex(prev =>
+                direccion === 'next'
+                    ? (prev + 1) % mensajesFijados.length
+                    : (prev - 1 + mensajesFijados.length) % mensajesFijados.length
+            );
+
+            setPinVisible(true);
+        }, 150);
+    };
+
+    const siguientePin = () => cambiarPin('next');
+    const anteriorPin = () => cambiarPin('prev');
+    
+    const irAMensajeFijado = (mensajeId) => {
+    const elemento = mensajeRefs.current[mensajeId];
+
+    if (!elemento) return;
+
+    elemento.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+    });
+
+    setMensajeResaltadoId(mensajeId);
+
+    setTimeout(() => {
+        setMensajeResaltadoId(null);
+        }, 1400);
     };
 
     const formatHora = (f) =>
@@ -462,60 +527,79 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                     </IconButton>
                 </Tooltip>
             </Box>
-            {mensajesFijados.length > 0 && (
-                <Box
-                    sx={{
-                        mx: 2,
-                        mt: 1,
-                        mb: 1,
-                        px: 1.5,
-                        py: 1,
-                        bgcolor: '#FFF7ED',
-                        border: '1px solid #FED7AA',
-                        borderRadius: 2,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-                    }}
-                >
-                    <Typography
-                        variant="caption"
+            {mensajesFijados.length > 0 && pinActual && (
+            <Box
+                sx={{
+                    px: { xs: 1.5, sm: 2 },
+                    py: 1,
+                    bgcolor: '#F8FAFC',
+                    borderBottom: '1px solid #E2E8F0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                }}
+            >
+                <IconButton size="small" onClick={anteriorPin} sx={{ color: '#64748B' }}>
+                    ‹
+                </IconButton>
+
+                <Fade in={pinVisible} timeout={150}>
+                    <Box
+                        onClick={() => irAMensajeFijado(pinActual.mensajeId)}
                         sx={{
-                            fontWeight: 700,
-                            color: '#C2410C',
-                            display: 'block',
-                            mb: 0.75
+                            flex: 1,
+                            minWidth: 0,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 1.25,
+                            py: 0.8,
+                            bgcolor: 'white',
+                            border: '1px solid #E2E8F0',
+                            borderRadius: 2,
+                            boxShadow: '0 1px 3px rgba(15,23,42,0.05)',
+                            '&:hover': {
+                                bgcolor: '#F1F5F9'
+                            }
                         }}
                     >
-                        <PushPinIcon sx={{ fontSize: 15 }} /> {mensajesFijados.length} mensaje{mensajesFijados.length > 1 ? 's' : ''} fijado{mensajesFijados.length > 1 ? 's' : ''}
-                    </Typography>
+                        <PushPinIcon sx={{ fontSize: 17, color: '#2563EB', flexShrink: 0 }} />
 
-                    {mensajesFijados.map(pin => (
-                        <Box
-                            key={pin.mensajeId}
-                            sx={{
-                                px: 1,
-                                py: 0.75,
-                                mb: 0.5,
-                                bgcolor: 'white',
-                                borderRadius: 1.5,
-                                borderLeft: '3px solid #F59E0B'
-                            }}
-                        >
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography
+                                variant="caption"
+                                sx={{
+                                    fontWeight: 700,
+                                    color: '#64748B',
+                                    display: 'block',
+                                    lineHeight: 1.2
+                                }}
+                            >
+                                Fijado {pinActualIndex + 1}/{mensajesFijados.length}
+                            </Typography>
+
                             <Typography
                                 variant="body2"
                                 sx={{
-                                    color: '#78350F',
+                                    color: '#1E293B',
                                     fontSize: 13,
                                     whiteSpace: 'nowrap',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis'
                                 }}
                             >
-                                {pin.contenido}
+                                {pinActual.contenido}
                             </Typography>
                         </Box>
-                    ))}
-                </Box>
-            )}
+                    </Box>
+                </Fade>
+
+                <IconButton size="small" onClick={siguientePin} sx={{ color: '#64748B' }}>
+                    ›
+                </IconButton>
+            </Box>
+        )}
             <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, bgcolor: '#F8FAFC', position: 'relative' }}>
                 <Collapse in={buscadorAbierto} timeout={200} unmountOnExit>
                     <Box sx={{ position: 'absolute', top: 12, right: 24, zIndex: 40, width: { xs: 'calc(100% - 48px)', sm: 360 }, p: 1.25, bgcolor: 'white', border: '1px solid #E2E8F0', borderRadius: 2, boxShadow: '0 8px 20px rgba(2,6,23,0.08)' }}>
@@ -620,12 +704,22 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                 const propio = m.emisorId === usuarioActual?.id;
                                 const mensajePadre = m.parentId != null ? mensajesPorId.get(m.parentId) : null;
                                 const resumenReacciones = renderReacciones(m.reacciones || []);
+                                const estaFijado = mensajesFijados.some(p => p.mensajeId === m.id);
+                                const animandoPin = pinAnimadoId === m.id;
                                 const etiquetaFecha = formatFecha(m.fechaEnvio);
                                 const mostrarSeparador = etiquetaFecha !== fechaRenderActual;
                                 fechaRenderActual = etiquetaFecha;
 
                                 return (
-                                    <Box key={m.id ?? m._key ?? i} sx={{ mb: 1.5 }}>
+                                    <Box
+                                        key={m.id ?? m._key ?? i}
+                                        ref={(el) => {
+                                            if (m.id != null && el) {
+                                                mensajeRefs.current[m.id] = el;
+                                            }
+                                        }}
+                                        sx={{ mb: 1.5 }}
+                                    >
                                         {mostrarSeparador && (
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, my: 2 }}>
                                                 <Box sx={{ flex: 1, height: 1, bgcolor: '#E2E8F0' }} />
@@ -640,7 +734,24 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                     {m.emisorNombre?.[0] || '?'}
                                                 </Avatar>
                                             )}
-                                            <Box sx={{ maxWidth: { xs: '90%', sm: '65%' }, width: 'fit-content' }}>
+                                            <Box
+                                                onMouseEnter={() => setAccionesMensajeId(m.id)}
+                                                onMouseLeave={() => setAccionesMensajeId(null)}
+                                                onContextMenu={(e) => {
+                                                    e.preventDefault();
+                                                    setAccionesMensajeId(prev => prev === m.id ? null : m.id);
+                                                }}
+                                                onTouchStart={() => {
+                                                    clearTimeout(window.longPressTimer);
+                                                    window.longPressTimer = setTimeout(() => {
+                                                        setAccionesMensajeId(prev => prev === m.id ? null : m.id);
+                                                    }, 450);
+                                                }}
+                                                onTouchEnd={() => {
+                                                    clearTimeout(window.longPressTimer);
+                                                }}
+                                                sx={{ maxWidth: { xs: '90%', sm: '65%' }, width: 'fit-content' }}
+                                            >
                                                 {esGrupo && !propio && (
                                                     <Typography fontSize={11} fontWeight={600} color="#64748B" sx={{ mb: 0.25, px: 0.5 }}>
                                                         {m.emisorNombre} {m.emisorApellido}
@@ -661,10 +772,20 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                 <Box sx={{
                                                     px: 2, py: 1,
                                                     bgcolor: propio ? '#2563EB' : 'white',
+                                                    border: mensajeResaltadoId === m.id
+                                                        ? '2px solid #F59E0B'
+                                                        : '1px solid transparent',
                                                     color: propio ? 'white' : '#1E293B',
                                                     borderRadius: propio ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+                                                    boxShadow: mensajeResaltadoId === m.id
+                                                        ? '0 0 0 4px rgba(245,158,11,0.22), 0 8px 18px rgba(245,158,11,0.25)'
+                                                        : '0 1px 3px rgba(0,0,0,0.07)',
                                                     opacity: m._optimista ? 0.75 : 1,
+                                                    transform: mensajeResaltadoId === m.id
+                                                        ? 'scale(1.03)'
+                                                        : 'scale(1)',
+
+                                                    transition: 'all 0.25s ease',
                                                 }}>
                                                     <Typography variant="body2" sx={{ lineHeight: 1.55, fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                                         {m.contenido}
@@ -690,7 +811,23 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                     </Box>
                                                 )}
 
-                                                <Stack direction="row" spacing={0.5} sx={{ mt: 0.75, flexWrap: 'wrap', alignItems: 'center', opacity: 0.9 }}>
+                                                <Stack
+                                                    direction="row"
+                                                    spacing={0.5}
+                                                    sx={{
+                                                        mt: accionesMensajeId === m.id ? 0.75 : 0,
+                                                        maxHeight: accionesMensajeId === m.id ? 40 : 0,
+                                                        opacity: accionesMensajeId === m.id ? 1 : 0,
+                                                        overflow: 'hidden',
+                                                        flexWrap: 'wrap',
+                                                        alignItems: 'center',
+                                                        pointerEvents: accionesMensajeId === m.id ? 'auto' : 'none',
+                                                        transform: accionesMensajeId === m.id
+                                                            ? 'translateY(0)'
+                                                            : 'translateY(-4px)',
+                                                        transition: 'all 0.18s ease',
+                                                    }}
+                                                >
                                                     <Tooltip title="Responder">
                                                         <IconButton size="small" onClick={() => setReplyTo(m)} sx={{ color: '#94A3B8', bgcolor: 'rgba(148,163,184,0.08)', '&:hover': { bgcolor: 'rgba(37,99,235,0.08)', color: '#2563EB' } }}>
                                                             <ReplyIcon sx={{ fontSize: 15 }} />
@@ -701,13 +838,15 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                             size="small"
                                                             onClick={() => togglePinMensaje(m)}
                                                             sx={{
-                                                                color: mensajesFijados.some(p => p.mensajeId === m.id)
-                                                                    ? '#D97706'
-                                                                    : '#94A3B8',
-                                                                bgcolor: 'rgba(148,163,184,0.08)',
+                                                                color: estaFijado ? '#2563EB' : '#94A3B8',
+                                                                bgcolor: estaFijado
+                                                                    ? 'rgba(37,99,235,0.10)'
+                                                                    : 'rgba(148,163,184,0.08)',
+                                                                transform: animandoPin ? 'scale(1.25) rotate(-12deg)' : 'scale(1)',
+                                                                transition: 'all 0.25s ease',
                                                                 '&:hover': {
-                                                                    bgcolor: 'rgba(217,119,6,0.08)',
-                                                                    color: '#D97706'
+                                                                    bgcolor: 'rgba(37,99,235,0.12)',
+                                                                    color: '#2563EB'
                                                                 }
                                                             }}
                                                         >

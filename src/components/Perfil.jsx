@@ -9,7 +9,9 @@ import EditIcon from '@mui/icons-material/Edit';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { editarUsuario, cambiarEstado } from '../services/api';
 
-const BASE_URL = 'http://localhost:8080/appchat/api';
+import CONFIG from '../services/config';
+const BASE_URL = CONFIG.BASE_URL;
+//const BASE_URL = 'http://localhost:8080/appchat/api';
 
 const ESTADOS = [
     { value: 'EN_LINEA',     label: 'En línea',    color: '#22C55E' },
