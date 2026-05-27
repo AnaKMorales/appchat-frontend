@@ -12,7 +12,7 @@ import CONFIG from '../services/config';
 const WS_URL = CONFIG.WS_URL;
 
 const getInvitaciones = async (token) => {
-    const r = await fetch('http://localhost:8080/appchat/api/comunidades/invitaciones/pendientes', {
+    const r = await fetch(`${CONFIG.BASE_URL}/comunidades/invitaciones/pendientes`, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!r.ok) return [];

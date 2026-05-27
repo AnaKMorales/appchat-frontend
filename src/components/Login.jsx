@@ -11,6 +11,8 @@ import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 
 import { useNavigate } from 'react-router-dom';
 
+import CONFIG from '../services/config';
+
 export default function Login({ onLogin }) {
     const navigate = useNavigate();
 
@@ -25,7 +27,7 @@ export default function Login({ onLogin }) {
         setCargando(true);
         setError('');
         try {
-            const response = await fetch('http://localhost:8080/appchat/api/auth/login', {
+            const response = await fetch(`${CONFIG.BASE_URL}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -36,8 +38,10 @@ export default function Login({ onLogin }) {
             } else {
                 setError('Email o contraseña incorrectos');
             }
-        } catch {
+        } catch(err) {
             setError('No se pudo conectar al servidor');
+            console.log(err);
+            setError(err.message);
         } finally {
             setCargando(false);
         }
