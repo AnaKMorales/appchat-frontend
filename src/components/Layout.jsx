@@ -441,6 +441,7 @@ export default function Layout({
                                     chatActivo?.chatId ===
                                     c.id
                                 }
+                                miembros={miembrosComunidad}
                                 onClick={() =>
                                     irAChat({
                                         chatId: c.id,
@@ -973,86 +974,33 @@ function SidebarItem({
     );
 }
 
-function ChatSidebarItem({
-    chat,
-    active,
-    onClick,
-    isGroup,
-}) {
+function ChatSidebarItem({ chat, active, onClick, isGroup, miembros = [] }) {
+    const miembro = miembros.find(m => 
+        `${m.nombre} ${m.apellido}` === chat.nombre
+    );
+
     return (
-        <Box
-            onClick={onClick}
-            sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                px: 2,
-                py: 0.85,
-                mx: 1,
-                borderRadius: R,
-                cursor: 'pointer',
-
-                bgcolor: active
-                    ? T.accentLight
-                    : 'transparent',
-
-                '&:hover': {
-                    bgcolor: active
-                        ? T.accentLight
-                        : T.bgHover,
-                },
-            }}
-        >
+        <Box onClick={onClick} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 0.85, mx: 1, borderRadius: R, cursor: 'pointer', bgcolor: active ? T.accentLight : 'transparent', '&:hover': { bgcolor: active ? T.accentLight : T.bgHover } }}>
             <Avatar
-                sx={{
-                    width: 40,
-                    height: 40,
-                    bgcolor: '#CBD5E1',
-                    color: 'white',
-                }}
+                src={!isGroup ? (miembro?.fotoPerfil || undefined) : undefined}
+                sx={{ width: 40, height: 40, bgcolor: '#CBD5E1', color: 'white' }}
             >
-                {isGroup ? (
-                    <GroupsIcon
-                        sx={{
-                            fontSize: 16,
-                        }}
-                    />
-                ) : (
-                    chat.nombre?.[0]?.toUpperCase()
-                )}
+                {isGroup
+                    ? <GroupsIcon sx={{ fontSize: 16 }} />
+                    : (!miembro?.fotoPerfil && chat.nombre?.[0]?.toUpperCase())
+                }
             </Avatar>
 
             <Box sx={{ minWidth: 0 }}>
-                <Typography
-                    noWrap
-                    fontSize={13}
-                    fontWeight={600}
-                    color={
-                        active
-                            ? T.accent
-                            : T.textSecond
-                    }
-                >
+                <Typography noWrap fontSize={13} fontWeight={600} color={active ? T.accent : T.textSecond}>
                     {chat.nombre}
                 </Typography>
-
                 {chat.ultimoMensajeContenido && (
-                    <Typography
-                        noWrap
-                        fontSize={11}
-                        sx={{
-                            color: T.textMuted,
-                        }}
-                    >
-                        {
-                            chat.ultimoMensajeContenido
-                        }
+                    <Typography noWrap fontSize={11} sx={{ color: T.textMuted }}>
+                        {chat.ultimoMensajeContenido}
                     </Typography>
                 )}
-
-            </Box> 
-
+            </Box>
         </Box>
-
     );
 }

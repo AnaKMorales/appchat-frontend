@@ -12,7 +12,8 @@ import {
     getMensajes,
     fijarMensaje,
     desfijarMensaje,
-    getMensajesFijados
+    getMensajesFijados,
+    getUsuarios,
 } from '../services/api';
 
 
@@ -20,6 +21,7 @@ import CONFIG from '../services/config';
 const WS_URL = CONFIG.WS_URL;
 
 const REACCIONES_RAPIDAS = ['👍', '❤️', '😂', '😮', '🔥'];
+
 
 function formatNombreMensaje(mensaje) {
     return `${mensaje?.emisorNombre ?? ''} ${mensaje?.emisorApellido ?? ''}`.trim() || mensaje?.emisorEmail || 'Usuario';
@@ -110,6 +112,8 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
         severity: 'info'
     });
 
+    const [usuariosMap, setUsuariosMap] = useState({});
+
     const { chatId, tipo, nombre } = chat;
     const esGrupo = tipo === 'GRUPO';
     const pinActual = mensajesFijados[pinActualIndex] ?? null;
@@ -163,6 +167,12 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
         setCargando(true);
         setMensajes([]);
         setReplyTo(null);
+
+        getUsuarios(token).then(lista => {
+            const map = {};
+            lista.forEach(u => { map[u.id] = u; });
+            setUsuariosMap(map);
+        }).catch(() => {});
 
         getMensajes(chatId, token)
             .then(h => {
@@ -507,6 +517,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                     </IconButton>
                 </Tooltip>
                 <Avatar
+                    src={!esGrupo ? (Object.values(usuariosMap).find(u => `${u.nombre} ${u.apellido}` === nombre)?.fotoPerfil || undefined) : undefined}
                     sx={{
                         width: 36,
                         height: 36,
@@ -741,8 +752,11 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
 
                                         <Box sx={{ display: 'flex', justifyContent: propio ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 1, pl: depth ? 2 : 0 }}>
                                             {!propio && (
-                                                <Avatar sx={{ width: 26, height: 26, fontSize: 10, fontWeight: 700, bgcolor: '#334155', mb: 0.25, flexShrink: 0 }}>
-                                                    {m.emisorNombre?.[0] || '?'}
+                                                <Avatar
+                                                    src={usuariosMap[m.emisorId]?.fotoPerfil || undefined}
+                                                    sx={{ width: 26, height: 26, fontSize: 10, fontWeight: 700, bgcolor: '#334155', mb: 0.25, flexShrink: 0 }}
+                                                >
+                                                    {!usuariosMap[m.emisorId]?.fotoPerfil && (m.emisorNombre?.[0] || '?')}
                                                 </Avatar>
                                             )}
                                             <Box

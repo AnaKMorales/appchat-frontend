@@ -107,13 +107,16 @@ export default function Buscador({ token, onSeleccionarUsuario, usuarioSeleccion
                             }}
                         >
                             <Box sx={{ position: 'relative', flexShrink: 0 }}>
-                                <Avatar sx={{
-                                    width: 30, height: 30,
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    bgcolor: selected ? '#2563EB' : '#2D3F52',
-                                }}>
-                                    {u.nombre?.[0]}{u.apellido?.[0]}
+                                <Avatar 
+                                    src={u.fotoPerfil || undefined}
+                                    sx={{
+                                        width: 30, height: 30,
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        bgcolor: selected ? '#2563EB' : '#2D3F52',
+                                    }}
+                                >
+                                    {!u.fotoPerfil && `${u.nombre?.[0] || ''}${u.apellido?.[0] || ''}`}
                                 </Avatar>
                                 {dotColor && (
                                     <Box sx={{
