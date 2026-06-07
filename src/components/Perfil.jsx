@@ -8,9 +8,14 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { editarUsuario, cambiarEstado } from '../services/api';
-
 import CONFIG from '../services/config';
-const BASE_URL = CONFIG.BASE_URL;
+
+import { createClient } from '@supabase/supabase-js';
+const supabase = createClient(
+  process.env.REACT_APP_SUPABASE_URL,
+  process.env.REACT_APP_SUPABASE_ANON_KEY
+);
+
 //const BASE_URL = 'http://localhost:8080/appchat/api';
 
 const ESTADOS = [
@@ -41,77 +46,80 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
     }, [usuarioActual]);
 
     const handleFotoSeleccionada = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    const file = e.target.files[0];
+    if (!file) return;
 
-        // validar formato
-        if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
-            setMensaje({ tipo: 'error', texto: 'Solo se permiten imágenes JPG, PNG, GIF o WEBP' });
-            return;
-        }
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+        setMensaje({ tipo: 'error', texto: 'Solo se permiten imágenes JPG, PNG, GIF o WEBP' });
+        return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+        setMensaje({ tipo: 'error', texto: 'La imagen no puede superar 5MB' });
+        return;
+    }
 
-        // validar tamaño (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            setMensaje({ tipo: 'error', texto: 'La imagen no puede superar 5MB' });
-            return;
-        }
+    // Preview local inmediato
+    const reader = new FileReader();
+    reader.onload = (ev) => setFotoPreview(ev.target.result);
+    reader.readAsDataURL(file);
 
-        // preview local inmediato
-        const reader = new FileReader();
-        reader.onload = (ev) => setFotoPreview(ev.target.result);
-        reader.readAsDataURL(file);
+    setSubiendoFoto(true);
+    setMensaje(null);
 
-        // subir al servidor
-        setSubiendoFoto(true);
-        setMensaje(null);
-        try {
-            const formData = new FormData();
-            formData.append('foto', file);
+    try {
+        const extension = file.name.split('.').pop();
+        const path = `avatars/${usuarioActual.id}.${extension}`;
 
-            const response = await fetch(`${BASE_URL}/usuarios/${usuarioActual.id}/foto`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData
-            });
+        // Subir a Supabase Storage
+        const { error } = await supabase.storage
+        .from('fotos-perfil')
+        .upload(path, file, { upsert: true });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Error del servidor:', errorText);
-                throw new Error('Error al subir');
-            }
+        if (error) throw new Error(error.message);
 
-            const data = await response.json();
-            setFotoPreview(data.url);
-            setMensaje({ tipo: 'success', texto: 'Foto actualizada correctamente' });
-            if (onActualizar) onActualizar({ ...usuarioActual, fotoPerfil: data.url });
-        } catch {
-            setMensaje({ tipo: 'error', texto: 'Error al subir la foto' });
-            setFotoPreview(usuarioActual?.fotoPerfil || null);
-        } finally {
-            setSubiendoFoto(false);
-        }
+        // Obtener URL pública
+        const { data } = supabase.storage.from('fotos-perfil').getPublicUrl(path);
+        const url = data.publicUrl;
+
+        // Guardar URL en tu backend Java (ya tenés este endpoint)
+        await editarUsuario(usuarioActual.id, {
+        nombre: usuarioActual.nombre,
+        apellido: usuarioActual.apellido,
+        fotoPerfil: url
+        }, token);
+
+        setFotoPreview(url);
+        setMensaje({ tipo: 'success', texto: 'Foto actualizada correctamente' });
+        if (onActualizar) onActualizar({ ...usuarioActual, fotoPerfil: url });
+
+    } catch (err) {
+        setMensaje({ tipo: 'error', texto: 'Error al subir la foto: ' + err.message });
+        setFotoPreview(usuarioActual?.fotoPerfil || null);
+    } finally {
+        setSubiendoFoto(false);
+    }
     };
 
     const guardar = async () => {
-        if (!usuarioActual) return;
-        setGuardando(true);
-        setMensaje(null);
-        try {
-            const updated = await editarUsuario(usuarioActual.id, {
-                nombre,
-                apellido,
-                fotoPerfil: fotoPreview || ''
-            }, token);
-            await cambiarEstado(usuarioActual.id, estado, token);
-            setMensaje({ tipo: 'success', texto: 'Perfil actualizado correctamente' });
-            setEditando(false);
-            if (onActualizar) onActualizar({ ...usuarioActual, nombre, apellido, estado, ...(updated || {}) });
-        } catch {
-            setMensaje({ tipo: 'error', texto: 'Error al guardar los cambios' });
-        } finally {
-            setGuardando(false);
-        }
-    };
+    if (!usuarioActual) return;
+    setGuardando(true);
+    setMensaje(null);
+    try {
+        const updated = await editarUsuario(usuarioActual.id, {
+            nombre,
+            apellido,
+            fotoPerfil: fotoPreview || ''
+        }, token);
+        await cambiarEstado(usuarioActual.id, estado, token);
+        setMensaje({ tipo: 'success', texto: 'Perfil actualizado correctamente' });
+        setEditando(false);
+        if (onActualizar) onActualizar({ ...usuarioActual, nombre, apellido, estado, ...(updated || {}) });
+    } catch {
+        setMensaje({ tipo: 'error', texto: 'Error al guardar los cambios' });
+    } finally {
+        setGuardando(false);
+    }
+};
 
     const cancelar = () => {
         if (usuarioActual) {
