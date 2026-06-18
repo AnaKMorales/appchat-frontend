@@ -49,11 +49,15 @@ export default function Notificaciones({ token, onInvitacionAceptada, chatActivo
             try {
                 const msg = JSON.parse(e.data);
                 if (msg.type === 'ERROR' || !msg.contenido) return;
-                // el servidor no incluye chatId — solo notificamos si el emisor no soy yo
-                // y no hay un chat activo (o sea está navegando fuera)
-                if (chatActivoId) return; // si hay chat abierto, Chat.jsx lo maneja
+                // Suprimir notificación si el mensaje es del chat que el usuario tiene abierto
+                if (chatActivoId && msg.chatId != null && Number(msg.chatId) === Number(chatActivoId)) {
+                    return;
+                }
+
                 const notif = {
                     id: Date.now(),
+                    chatId: msg.chatId || null,
+                    nombre: msg.chatNombre || null,
                     emisor: msg.emisorNombre ? `${msg.emisorNombre} ${msg.emisorApellido || ''}`.trim() : 'Alguien',
                     contenido: msg.contenido.length > 50 ? msg.contenido.substring(0, 50) + '...' : msg.contenido,
                 };
@@ -94,8 +98,15 @@ export default function Notificaciones({ token, onInvitacionAceptada, chatActivo
     return (
         <>
             <Tooltip title="Notificaciones">
-                <IconButton size="small" onClick={e => { setAnchor(e.currentTarget); setMsgNuevos([]); }}
-                    sx={{ color: 'rgba(255,255,255,0.35)', '&:hover': { color: 'white' }, p: 0.3 }}>
+                <IconButton size="small" onClick={e => setAnchor(e.currentTarget)}
+                    sx={{
+                        color: '#64748B',
+                        '&:hover': {
+                            color: '#2563EB',
+                            bgcolor: 'rgba(37,99,235,0.08)'
+                        },
+                        p: 0.3
+                    }}>
                     <Badge badgeContent={totalBadge || null} color="error"
                         sx={{ '& .MuiBadge-badge': { fontSize: 9, minWidth: 14, height: 14 } }}>
                         <NotificationsIcon sx={{ fontSize: 15 }} />
@@ -132,6 +143,32 @@ export default function Notificaciones({ token, onInvitacionAceptada, chatActivo
                     </Box>
                 ) : (
                     <>
+                        {msgNuevos.map((notif, i) => (
+                            <Box key={notif.id}>
+                                <Box sx={{ px: 2.5, py: 2 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                                        <Box sx={{ width: 32, height: 32, borderRadius: 1.5, bgcolor: '#0EA5E9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            <MessageIcon sx={{ fontSize: 16, color: 'white' }} />
+                                        </Box>
+                                        <Box>
+                                            <Typography fontSize={13} fontWeight={600} color="white">Nuevo mensaje</Typography>
+                                            <Typography fontSize={12} sx={{ color: 'rgba(255,255,255,0.75)' }}>
+                                                {notif.emisor}
+                                            </Typography>
+                                            <Typography fontSize={12} sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                                                {notif.contenido}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                </Box>
+                                {i < msgNuevos.length - 1 && <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />}
+                            </Box>
+                        ))}
+
+                        {msgNuevos.length > 0 && invitaciones.length > 0 && (
+                            <Divider sx={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+                        )}
+
                         {invitaciones.map((inv, i) => (
                             <Box key={inv.id}>
                                 <Box sx={{ px: 2.5, py: 2 }}>

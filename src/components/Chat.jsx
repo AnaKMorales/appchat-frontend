@@ -149,14 +149,27 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
         });
     }, []);
 
+    // Upsert: reemplaza cualquier reacción previa del mismo usuario+tipo (evita duplicados tmp/id)
     const agregarReaccionLocal = useCallback((messageId, reaccion) => {
         if (!messageId || !reaccion) return;
+        setMensajes(prev => prev.map(msg => {
+            if (msg.id != messageId) return msg;
+            const sinDup = (msg.reacciones || []).filter(r =>
+                !(r.tipo === reaccion.tipo && r.usuarioId == reaccion.usuarioId)
+            );
+            return { ...msg, reacciones: [...sinDup, reaccion] };
+        }));
+    }, []);
 
-        setMensajes(prev => prev.map(mensajeActual => {
-            if (mensajeActual.id !== messageId) return mensajeActual;
+    const quitarReaccionLocal = useCallback((messageId, reaccion) => {
+        if (!messageId || !reaccion) return;
+        setMensajes(prev => prev.map(msg => {
+            if (msg.id != messageId) return msg;
             return {
-                ...mensajeActual,
-                reacciones: unirReacciones(mensajeActual.reacciones, [reaccion]),
+                ...msg,
+                reacciones: (msg.reacciones || []).filter(r =>
+                    !(r.tipo === reaccion.tipo && r.usuarioId == reaccion.usuarioId)
+                ),
             };
         }));
     }, []);
@@ -204,12 +217,23 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                 if (data?.type === 'REACTION_ADDED') {
                     const reaction = data.reaction;
                     if (!data.messageId || !reaction) return;
+                    // Filtrar reacciones de otros chats (loose == para tolerar número vs string)
+                    if (data.chatId != null && data.chatId != chatId) return;
                     agregarReaccionLocal(data.messageId, reaction);
                     return;
                 }
 
+                if (data?.type === 'REACTION_REMOVED') {
+                    const reaction = data.reaction;
+                    if (!data.messageId || !reaction) return;
+                    if (data.chatId != null && data.chatId != chatId) return;
+                    quitarReaccionLocal(data.messageId, reaction);
+                    return;
+                }
+
                 if (!data?.contenido) return;
-                if (data.chatId && data.chatId !== chatId) return;
+                // Filtrar mensajes de otros chats (loose != para number vs string)
+                if (data.chatId != null && data.chatId != chatId) return;
 
                 upsertMensaje({ ...data, reacciones: data.reacciones || [] });
             } catch {
@@ -220,7 +244,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
         return () => {
             ws.close();
         };
-    }, [chatId, token, upsertMensaje, agregarReaccionLocal]);
+    }, [chatId, token, upsertMensaje, agregarReaccionLocal, quitarReaccionLocal]);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -264,40 +288,20 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
             }
 
             wsRef.current.send(JSON.stringify(payload));
-            setTimeout(() => {
-                getMensajes(chatId, token)
-                    .then(h => {
-                        const lista = Array.isArray(h?.mensajes) ? h.mensajes : [];
-                        setMensajes(deduplicarMensajes(lista.map(m => ({
-                            ...m,
-                            reacciones: m.reacciones || []
-                        }))));
-                    });
-            }, 500);
         }
     }, [mensaje, chatId, usuarioActual, replyTo, upsertMensaje]);
 
+    // Sin update optimista: esperamos REACTION_ADDED/REMOVED del servidor para actualizar estado
     const reaccionar = useCallback((mensajeObjetivo, emoji) => {
         if (!mensajeObjetivo?.id || !emoji) return;
-
-        const reaction = {
-            tipo: emoji,
-            usuarioId: usuarioActual?.id,
-            usuarioNombre: usuarioActual?.nombre,
-            usuarioApellido: usuarioActual?.apellido,
-            fecha: new Date().toISOString(),
-        };
-
-        agregarReaccionLocal(mensajeObjetivo.id, reaction);
-
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-                accion: 'REACCION',
-                mensajeId: mensajeObjetivo.id,
-                contenido: emoji,
-            }));
-        }
-    }, [agregarReaccionLocal, usuarioActual]);
+        if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+        wsRef.current.send(JSON.stringify({
+            accion: 'REACCION',
+            mensajeId: mensajeObjetivo.id,
+            contenido: emoji,
+            chatId: Number(chatId),
+        }));
+    }, [chatId]);
 
     const togglePinMensaje = async (mensajeObjetivo) => {
         if (!mensajeObjetivo?.id) return;
@@ -783,16 +787,25 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                     </Typography>
                                                 )}
 
-                                                {mensajePadre && (
-                                                    <Box sx={{ mb: 0.75, p: 1, borderLeft: '3px solid #2563EB', bgcolor: 'rgba(37,99,235,0.06)', borderRadius: 1.5 }}>
-                                                        <Typography variant="caption" sx={{ display: 'block', color: '#2563EB', fontWeight: 700 }}>
-                                                            En respuesta a {formatNombreMensaje(mensajePadre)}
-                                                        </Typography>
-                                                        <Typography variant="caption" sx={{ display: 'block', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                            {mensajePadre.contenido}
-                                                        </Typography>
-                                                    </Box>
-                                                )}
+{mensajePadre ? (
+                                    <Box sx={{ mb: 0.75, p: 1, borderLeft: '3px solid #2563EB', bgcolor: 'rgba(37,99,235,0.06)', borderRadius: 1.5 }}>
+                                        <Typography variant="caption" sx={{ display: 'block', color: '#2563EB', fontWeight: 700 }}>
+                                            En respuesta a {formatNombreMensaje(mensajePadre)}
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ display: 'block', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {mensajePadre.contenido}
+                                        </Typography>
+                                    </Box>
+                                ) : m.parentId != null && m.parentContenido ? (
+                                    <Box sx={{ mb: 0.75, p: 1, borderLeft: '3px solid #2563EB', bgcolor: 'rgba(37,99,235,0.06)', borderRadius: 1.5 }}>
+                                        <Typography variant="caption" sx={{ display: 'block', color: '#2563EB', fontWeight: 700 }}>
+                                            En respuesta a {m.parentEmisorNombre || 'Usuario'}
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ display: 'block', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {m.parentContenido}
+                                        </Typography>
+                                    </Box>
+                                ) : null}
 
                                                 <Box sx={{
                                                     px: 2, py: 1,
@@ -825,12 +838,16 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                                 key={`${m.id}-${reaccion.tipo}`}
                                                                 size="small"
                                                                 label={`${reaccion.tipo} ${reaccion.count}`}
+                                                                onClick={() => reaccionar(m, reaccion.tipo)}
                                                                 variant={reaccion.mine ? 'filled' : 'outlined'}
                                                                 sx={{
-                                                                    height: 22,
-                                                                    fontSize: 11,
-                                                                    bgcolor: reaccion.mine ? 'rgba(37,99,235,0.12)' : 'white',
-                                                                    borderColor: reaccion.mine ? 'rgba(37,99,235,0.25)' : '#E2E8F0',
+                                                                    height: 24,
+                                                                    fontSize: 13,
+                                                                    cursor: 'pointer',
+                                                                    bgcolor: reaccion.mine ? 'rgba(37,99,235,0.15)' : 'white',
+                                                                    borderColor: reaccion.mine ? '#2563EB' : '#E2E8F0',
+                                                                    fontWeight: reaccion.mine ? 700 : 400,
+                                                                    '&:hover': { bgcolor: 'rgba(37,99,235,0.1)' },
                                                                 }}
                                                             />
                                                         ))}

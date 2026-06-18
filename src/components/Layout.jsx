@@ -4,7 +4,6 @@ import {
     Typography,
     Avatar,
     IconButton,
-    Tooltip,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -12,6 +11,8 @@ import {
     Button,
     TextField,
     Drawer,
+    Menu,
+    MenuItem,
 } from '@mui/material';
 
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -21,6 +22,9 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import AddIcon from '@mui/icons-material/Add';
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
 import MenuIcon from '@mui/icons-material/Menu';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -36,6 +40,8 @@ import {
     getComunidades,
     getComunidadDetalle,
     crearChatGrupo,
+    editarGrupo,
+    eliminarGrupo,
 } from '../services/api';
 
 const STATUS_COLOR = {
@@ -43,6 +49,13 @@ const STATUS_COLOR = {
     OCUPADO: '#F59E0B',
     INVISIBLE: '#94A3B8',
     DESCONECTADO: '#94A3B8',
+};
+
+const STATUS_LABEL = {
+    EN_LINEA: 'En linea',
+    OCUPADO: 'Ocupado',
+    INVISIBLE: 'Invisible',
+    DESCONECTADO: 'Desconectado',
 };
 
 function colorPorNombre() {
@@ -103,9 +116,19 @@ export default function Layout({
 
     const [grupoMiembros, setGrupoMiembros] = useState([]);
     const [miembrosComunidad, setMiembrosComunidad] = useState([]);
+    const [grupoMenuAnchor, setGrupoMenuAnchor] = useState(null);
+    const [grupoSeleccionado, setGrupoSeleccionado] = useState(null);
+    const [dlgEditarGrupo, setDlgEditarGrupo] = useState(false);
+    const [dlgEliminarGrupo, setDlgEliminarGrupo] = useState(false);
+    const [grupoEditForm, setGrupoEditForm] = useState({
+        nombre: '',
+        descripcion: '',
+    });
 
     const statusColor =
         STATUS_COLOR[usuarioActual?.estado] || '#94A3B8';
+    const statusLabel =
+        STATUS_LABEL[usuarioActual?.estado] || 'Desconectado';
 
     const cargarComunidades = useCallback(() => {
         getComunidades(token)
@@ -206,6 +229,84 @@ export default function Layout({
                 tipo: 'GRUPO',
                 nombre: chat.nombre || grupoForm.nombre,
             });
+        } catch {}
+    };
+
+    const abrirMenuGrupo = (event, chatGrupo) => {
+        event.stopPropagation();
+        setGrupoMenuAnchor(event.currentTarget);
+        setGrupoSeleccionado(chatGrupo);
+    };
+
+    const cerrarMenuGrupo = () => {
+        setGrupoMenuAnchor(null);
+    };
+
+    const abrirEditarGrupo = () => {
+        if (!grupoSeleccionado) return;
+        setGrupoEditForm({
+            nombre: grupoSeleccionado.nombre || '',
+            descripcion: grupoSeleccionado.descripcion || '',
+        });
+        setDlgEditarGrupo(true);
+        cerrarMenuGrupo();
+    };
+
+    const guardarEdicionGrupo = async () => {
+        if (!grupoSeleccionado?.id || !grupoEditForm.nombre.trim()) return;
+        try {
+            const actualizado = await editarGrupo(
+                grupoSeleccionado.id,
+                {
+                    nombre: grupoEditForm.nombre.trim(),
+                    descripcion: grupoEditForm.descripcion?.trim() || '',
+                },
+                token
+            );
+
+            const nombreActualizado = actualizado?.nombre || grupoEditForm.nombre.trim();
+            const descripcionActualizada = actualizado?.descripcion ?? grupoEditForm.descripcion?.trim() ?? '';
+
+            setChats((prev) =>
+                prev.map((chatItem) =>
+                    chatItem.id === grupoSeleccionado.id
+                        ? {
+                            ...chatItem,
+                            nombre: nombreActualizado,
+                            descripcion: descripcionActualizada,
+                        }
+                        : chatItem
+                )
+            );
+
+            setChatActivo((prev) => {
+                if (!prev || prev.chatId !== grupoSeleccionado.id) return prev;
+                return {
+                    ...prev,
+                    nombre: nombreActualizado,
+                };
+            });
+
+            setDlgEditarGrupo(false);
+        } catch {}
+    };
+
+    const confirmarEliminarGrupo = async () => {
+        if (!grupoSeleccionado?.id) return;
+        try {
+            await eliminarGrupo(grupoSeleccionado.id, token);
+
+            setChats((prev) =>
+                prev.filter((chatItem) => chatItem.id !== grupoSeleccionado.id)
+            );
+
+            if (chatActivo?.chatId === grupoSeleccionado.id) {
+                setChatActivo(null);
+                setPantalla('comunidad');
+            }
+
+            setDlgEliminarGrupo(false);
+            setGrupoSeleccionado(null);
         } catch {}
     };
 
@@ -515,6 +616,9 @@ export default function Layout({
                                         nombre: c.nombre,
                                     })
                                 }
+                                onOpenMenu={(event) =>
+                                    abrirMenuGrupo(event, c)
+                                }
                             />
                         ))}
                     </>
@@ -559,11 +663,23 @@ export default function Layout({
                     <Typography
                         noWrap
                         sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.75,
                             fontSize: 12,
                             color: '#94A3B8',
                         }}
                     >
-                        {usuarioActual?.estado?.toLowerCase()}
+                        <Box
+                            component="span"
+                            sx={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                bgcolor: statusColor,
+                            }}
+                        />
+                        {statusLabel}
                     </Typography>
                 </Box>
 
@@ -912,7 +1028,103 @@ export default function Layout({
                         Crear grupo
                     </Button>
                 </DialogActions>
-            </Dialog>     
+            </Dialog>
+
+            <Menu
+                anchorEl={grupoMenuAnchor}
+                open={Boolean(grupoMenuAnchor)}
+                onClose={cerrarMenuGrupo}
+            >
+                <MenuItem onClick={abrirEditarGrupo}>
+                    <EditIcon sx={{ fontSize: 17, mr: 1 }} />
+                    Editar grupo
+                </MenuItem>
+                <MenuItem
+                    onClick={() => {
+                        setDlgEliminarGrupo(true);
+                        cerrarMenuGrupo();
+                    }}
+                    sx={{ color: '#DC2626' }}
+                >
+                    <DeleteIcon sx={{ fontSize: 17, mr: 1 }} />
+                    Eliminar grupo
+                </MenuItem>
+            </Menu>
+
+            <Dialog
+                open={dlgEditarGrupo}
+                onClose={() => setDlgEditarGrupo(false)}
+                fullWidth
+                maxWidth="xs"
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Editar grupo</DialogTitle>
+                <DialogContent
+                    sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                        pt: '12px !important',
+                    }}
+                >
+                    <TextField
+                        label="Nombre del grupo"
+                        fullWidth
+                        value={grupoEditForm.nombre}
+                        onChange={(e) =>
+                            setGrupoEditForm((prev) => ({
+                                ...prev,
+                                nombre: e.target.value,
+                            }))
+                        }
+                    />
+
+                    <TextField
+                        label="Descripcion"
+                        fullWidth
+                        multiline
+                        rows={3}
+                        value={grupoEditForm.descripcion}
+                        onChange={(e) =>
+                            setGrupoEditForm((prev) => ({
+                                ...prev,
+                                descripcion: e.target.value,
+                            }))
+                        }
+                    />
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setDlgEditarGrupo(false)}>Cancelar</Button>
+                    <Button
+                        variant="contained"
+                        onClick={guardarEdicionGrupo}
+                        disabled={!grupoEditForm.nombre.trim()}
+                    >
+                        Guardar
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={dlgEliminarGrupo}
+                onClose={() => setDlgEliminarGrupo(false)}
+                fullWidth
+                maxWidth="xs"
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Eliminar grupo</DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        Esta accion elimina el grupo
+                        {grupoSeleccionado?.nombre ? ` ${grupoSeleccionado.nombre}` : ''}
+                        .
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setDlgEliminarGrupo(false)}>Cancelar</Button>
+                    <Button color="error" variant="contained" onClick={confirmarEliminarGrupo}>
+                        Eliminar
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
 
         </Box>
@@ -974,7 +1186,7 @@ function SidebarItem({
     );
 }
 
-function ChatSidebarItem({ chat, active, onClick, isGroup, miembros = [] }) {
+function ChatSidebarItem({ chat, active, onClick, isGroup, miembros = [], onOpenMenu }) {
     const miembro = miembros.find(m => 
         `${m.nombre} ${m.apellido}` === chat.nombre
     );
@@ -991,7 +1203,7 @@ function ChatSidebarItem({ chat, active, onClick, isGroup, miembros = [] }) {
                 }
             </Avatar>
 
-            <Box sx={{ minWidth: 0 }}>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Typography noWrap fontSize={13} fontWeight={600} color={active ? T.accent : T.textSecond}>
                     {chat.nombre}
                 </Typography>
@@ -1001,6 +1213,19 @@ function ChatSidebarItem({ chat, active, onClick, isGroup, miembros = [] }) {
                     </Typography>
                 )}
             </Box>
+
+            {isGroup && onOpenMenu && (
+                <IconButton
+                    size="small"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenMenu(event);
+                    }}
+                    sx={{ color: '#94A3B8' }}
+                >
+                    <MoreVertIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+            )}
         </Box>
     );
 }

@@ -107,6 +107,14 @@ export const editarGrupo = async (chatId, datos, token) => {
     return parseResponse(response);
 };
 
+export const eliminarGrupo = async (chatId, token) => {
+    const response = await fetch(`${BASE_URL}/chat/${chatId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+};
+
 export const eliminarMiembroGrupo = async (chatId, userId, token) => {
     const response = await fetch(`${BASE_URL}/chat/${chatId}/miembros/${userId}`, {
         method: 'DELETE',

@@ -8,13 +8,13 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { editarUsuario, cambiarEstado } from '../services/api';
-import CONFIG from '../services/config';
 
 import { createClient } from '@supabase/supabase-js';
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_ANON_KEY
-);
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+const supabase = SUPABASE_URL && SUPABASE_ANON_KEY
+        ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+        : null;
 
 //const BASE_URL = 'http://localhost:8080/appchat/api';
 
@@ -31,6 +31,7 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
     const [estado, setEstado] = useState('EN_LINEA');
     const [editando, setEditando] = useState(false);
     const [guardando, setGuardando] = useState(false);
+    const [guardandoEstado, setGuardandoEstado] = useState(false);
     const [subiendoFoto, setSubiendoFoto] = useState(false);
     const [mensaje, setMensaje] = useState(null);
     const [fotoPreview, setFotoPreview] = useState(null);
@@ -48,6 +49,11 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
     const handleFotoSeleccionada = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (!supabase) {
+        setMensaje({ tipo: 'error', texto: 'Falta configurar Supabase (REACT_APP_SUPABASE_URL y REACT_APP_SUPABASE_ANON_KEY)' });
+        return;
+    }
 
     if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
         setMensaje({ tipo: 'error', texto: 'Solo se permiten imágenes JPG, PNG, GIF o WEBP' });
@@ -110,10 +116,9 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
             apellido,
             fotoPerfil: fotoPreview || ''
         }, token);
-        await cambiarEstado(usuarioActual.id, estado, token);
         setMensaje({ tipo: 'success', texto: 'Perfil actualizado correctamente' });
         setEditando(false);
-        if (onActualizar) onActualizar({ ...usuarioActual, nombre, apellido, estado, ...(updated || {}) });
+        if (onActualizar) onActualizar({ ...usuarioActual, nombre, apellido, ...(updated || {}) });
     } catch {
         setMensaje({ tipo: 'error', texto: 'Error al guardar los cambios' });
     } finally {
@@ -121,11 +126,31 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
     }
 };
 
+    const handleCambioEstado = async (nuevoEstado) => {
+        setEstado(nuevoEstado);
+
+        if (!usuarioActual || nuevoEstado === (usuarioActual.estado || 'EN_LINEA')) {
+            return;
+        }
+
+        setGuardandoEstado(true);
+        setMensaje(null);
+        try {
+            await cambiarEstado(usuarioActual.id, nuevoEstado, token);
+            setMensaje({ tipo: 'success', texto: 'Estado actualizado correctamente' });
+            if (onActualizar) onActualizar({ ...usuarioActual, estado: nuevoEstado });
+        } catch {
+            setMensaje({ tipo: 'error', texto: 'Error al actualizar el estado' });
+            setEstado(usuarioActual.estado || 'EN_LINEA');
+        } finally {
+            setGuardandoEstado(false);
+        }
+    };
+
     const cancelar = () => {
         if (usuarioActual) {
             setNombre(usuarioActual.nombre || '');
             setApellido(usuarioActual.apellido || '');
-            setEstado(usuarioActual.estado || 'EN_LINEA');
             setFotoPreview(usuarioActual.fotoPerfil || null);
         }
         setEditando(false);
@@ -159,7 +184,7 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
                         <IconButton
                             size="small"
                             onClick={() => fileInputRef.current?.click()}
-                            disabled={subiendoFoto}
+                            disabled={subiendoFoto || !supabase}
                             sx={{
                                 position: 'absolute', bottom: -4, left: -4,
                                 width: 28, height: 28,
@@ -185,7 +210,9 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
                         <Typography fontWeight={700} fontSize={18} color="#1E293B">{nombre} {apellido}</Typography>
                         <Typography variant="body2" color="#64748B">@{usuarioActual?.username}</Typography>
                         <Typography variant="caption" color="#94A3B8" sx={{ display: 'block', mt: 0.5 }}>
-                            Click en la cámara para cambiar tu foto
+                            {supabase
+                                ? 'Click en la cámara para cambiar tu foto'
+                                : 'Subida de foto deshabilitada: faltan variables de Supabase'}
                         </Typography>
                     </Box>
                 </Box>
@@ -225,9 +252,9 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
                             <TextField label="Apellido" value={apellido} onChange={e => setApellido(e.target.value)}
                                 disabled={!editando} fullWidth size="small"
                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
-                            <FormControl fullWidth size="small" disabled={!editando}>
+                            <FormControl fullWidth size="small" disabled={guardandoEstado}>
                                 <InputLabel>Estado</InputLabel>
-                                <Select value={estado} label="Estado" onChange={e => setEstado(e.target.value)} sx={{ borderRadius: 2 }}>
+                                <Select value={estado} label="Estado" onChange={e => handleCambioEstado(e.target.value)} sx={{ borderRadius: 2 }}>
                                     {ESTADOS.map(e => (
                                         <MenuItem key={e.value} value={e.value}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
