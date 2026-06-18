@@ -112,6 +112,9 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
         severity: 'info'
     });
 
+    const [typing, setTyping] = useState(false);
+    const typingTimeout = useRef(null);
+
     const [usuariosMap, setUsuariosMap] = useState({});
 
     const { chatId, tipo, nombre } = chat;
@@ -200,6 +203,19 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                 const data = JSON.parse(e.data);
 
                 if (data?.type === 'ERROR') return;
+
+                if (data?.type === 'TYPING') {
+                    
+                    setTyping(true);
+                
+                    clearTimeout(typingTimeout.current);
+
+                typingTimeout.current = setTimeout(() => {
+                    setTyping(false);
+                    }, 2000);
+
+                return;
+                }
 
                 if (data?.type === 'REACTION_ADDED') {
                     const reaction = data.reaction;
@@ -942,13 +958,37 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                     </Box>
                 )}
 
+                {typing && (
+                    <Typography
+                    variant="caption"
+                    sx={{
+                        display: 'block',
+                        mb: 1,
+                        color: '#64748B',
+                        fontStyle: 'italic'
+                    }}
+                >
+                        Está escribiendo...
+                    </Typography>
+                )}
+
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#F1F5F9', borderRadius: 3, px: 2, py: 0.5, border: '1px solid #E2E8F0' }}>
                     <TextField
                         inputRef={inputRef}
                         fullWidth
                         placeholder={`Mensaje en ${nombre}...`}
                         value={mensaje}
-                        onChange={e => setMensaje(e.target.value)}
+                        onChange={e => {
+                            
+                            setMensaje(e.target.value);
+                            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                                wsRef.current.send(JSON.stringify({
+                                accion: 'TYPING',
+                                chatId
+                                }));
+                            }
+
+                        }}
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } }}
                         variant="standard"
                         multiline
