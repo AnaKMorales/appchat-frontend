@@ -70,6 +70,34 @@ export const getMensajes = async (chatId, token, page = 0) => {
     return parseResponse(response);
 };
 
+export const subirAdjunto = async (chatId, file, token, parentId = null) => {
+    const contenidoBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const value = String(reader.result || '');
+            const comma = value.indexOf(',');
+            resolve(comma >= 0 ? value.slice(comma + 1) : value);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
+    const response = await fetch(`${BASE_URL}/chats/${chatId}/adjuntos`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            nombre: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            contenidoBase64,
+            parentId,
+        })
+    });
+    return parseResponse(response);
+};
+
 export const crearChat = async (usuarioDestinoId, comunidadId, token) => {
     const response = await fetch(`${BASE_URL}/chats`, {
         method: 'POST',

@@ -6,6 +6,7 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import ReplyIcon from '@mui/icons-material/Reply';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 //import { getMensajes } from '../services/api';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import {
@@ -14,11 +15,13 @@ import {
     desfijarMensaje,
     getMensajesFijados,
     getUsuarios,
+    subirAdjunto,
 } from '../services/api';
 
 
 import CONFIG from '../services/config';
 const WS_URL = CONFIG.WS_URL;
+const API_URL = CONFIG.BASE_URL;
 
 const REACCIONES_RAPIDAS = ['👍', '❤️', '😂', '😮', '🔥'];
 
@@ -37,6 +40,11 @@ function obtenerFechaISO(fecha) {
     const d = new Date(fecha);
     if (Number.isNaN(d.getTime())) return '';
     return d.toISOString().slice(0, 10);
+}
+
+function construirAdjuntoUrl(mensaje, token) {
+    const base = mensaje?.adjuntoUrl || `${API_URL}/chats/adjuntos/${mensaje?.id}`;
+    return `${base}?token=${encodeURIComponent(token || '')}`;
 }
 
 function reaccionKey(reaccion) {
@@ -103,6 +111,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
     const wsRef = useRef(null);
     const bottomRef = useRef(null);
     const inputRef = useRef(null);
+    const fileInputRef = useRef(null);
     const [pinAnimadoId, setPinAnimadoId] = useState(null);
     const mensajeRefs = useRef({});
     const [mensajeResaltadoId, setMensajeResaltadoId] = useState(null);
@@ -111,6 +120,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
         mensaje: '',
         severity: 'info'
     });
+    const [subiendoAdjunto, setSubiendoAdjunto] = useState(false);
 
     const [usuariosMap, setUsuariosMap] = useState({});
 
@@ -290,6 +300,29 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
             wsRef.current.send(JSON.stringify(payload));
         }
     }, [mensaje, chatId, usuarioActual, replyTo, upsertMensaje]);
+
+    const manejarSeleccionArchivo = useCallback(async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file || !chatId || !token) return;
+
+        const max = 10 * 1024 * 1024;
+        if (file.size > max) {
+            setNotificacion({ open: true, mensaje: 'El archivo supera 10MB', severity: 'warning' });
+            return;
+        }
+
+        try {
+            setSubiendoAdjunto(true);
+            await subirAdjunto(chatId, file, token, replyTo?.id ?? null);
+            setReplyTo(null);
+            setNotificacion({ open: true, mensaje: 'Adjunto enviado', severity: 'success' });
+        } catch (e) {
+            setNotificacion({ open: true, mensaje: 'No se pudo enviar el adjunto', severity: 'error' });
+        } finally {
+            setSubiendoAdjunto(false);
+        }
+    }, [chatId, token, replyTo]);
 
     // Sin update optimista: esperamos REACTION_ADDED/REMOVED del servidor para actualizar estado
     const reaccionar = useCallback((mensajeObjetivo, emoji) => {
@@ -826,9 +859,51 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                     py: 1,
                                                     transition: 'all 0.25s ease',
                                                 }}>
-                                                    <Typography variant="body2" sx={{ lineHeight: 1.55, fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                                        {m.contenido}
-                                                    </Typography>
+                                                    {(m.tipo === 'IMAGEN' && m.adjuntoUrl) ? (
+                                                        <Box>
+                                                            <Box
+                                                                component="img"
+                                                                src={construirAdjuntoUrl(m, token)}
+                                                                alt={m.adjuntoNombre || 'imagen'}
+                                                                sx={{ display: 'block', maxWidth: { xs: 220, sm: 320 }, maxHeight: 280, borderRadius: 2, mb: 0.5, cursor: 'pointer' }}
+                                                                onClick={() => window.open(construirAdjuntoUrl(m, token), '_blank')}
+                                                            />
+                                                            <Typography variant="caption" sx={{ color: propio ? 'rgba(255,255,255,0.85)' : '#64748B' }}>
+                                                                {m.adjuntoNombre || 'Imagen'}
+                                                            </Typography>
+                                                        </Box>
+                                                    ) : (m.tipo === 'VIDEO' && m.adjuntoUrl) ? (
+                                                        <Box>
+                                                            <Box
+                                                                component="video"
+                                                                src={construirAdjuntoUrl(m, token)}
+                                                                controls
+                                                                sx={{ display: 'block', maxWidth: { xs: 240, sm: 360 }, maxHeight: 280, borderRadius: 2, mb: 0.5, bgcolor: '#000' }}
+                                                            />
+                                                            <Typography variant="caption" sx={{ color: propio ? 'rgba(255,255,255,0.85)' : '#64748B' }}>
+                                                                {m.adjuntoNombre || 'Video'}
+                                                            </Typography>
+                                                        </Box>
+                                                    ) : (m.tipo === 'ARCHIVO' && m.adjuntoUrl) ? (
+                                                        <Box>
+                                                            <Typography variant="body2" sx={{ lineHeight: 1.55, fontSize: 14, fontWeight: 600 }}>
+                                                                {m.adjuntoNombre || m.contenido || 'Archivo'}
+                                                            </Typography>
+                                                            <Typography
+                                                                component="a"
+                                                                href={construirAdjuntoUrl(m, token)}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                sx={{ display: 'inline-block', mt: 0.5, fontSize: 12, color: propio ? '#DBEAFE' : '#2563EB', textDecoration: 'underline' }}
+                                                            >
+                                                                Abrir / descargar
+                                                            </Typography>
+                                                        </Box>
+                                                    ) : (
+                                                        <Typography variant="body2" sx={{ lineHeight: 1.55, fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                                            {m.contenido}
+                                                        </Typography>
+                                                    )}
                                                 </Box>
 
                                                 {resumenReacciones.length > 0 && (
@@ -960,6 +1035,25 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                 )}
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#F1F5F9', borderRadius: 3, px: 2, py: 0.5, border: '1px solid #E2E8F0' }}>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        style={{ display: 'none' }}
+                        onChange={manejarSeleccionArchivo}
+                    />
+                    <IconButton
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={subiendoAdjunto}
+                        size="small"
+                        sx={{
+                            width: 34,
+                            height: 34,
+                            color: subiendoAdjunto ? '#94A3B8' : '#2563EB',
+                            flexShrink: 0
+                        }}
+                    >
+                        <AttachFileIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
                     <TextField
                         inputRef={inputRef}
                         fullWidth
@@ -975,9 +1069,9 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                     />
                     <IconButton
                         onClick={enviar}
-                        disabled={!mensaje.trim()}
+                        disabled={!mensaje.trim() || subiendoAdjunto}
                         size="small"
-                        sx={{ width: 34, height: 34, bgcolor: mensaje.trim() ? '#2563EB' : 'transparent', color: mensaje.trim() ? 'white' : '#CBD5E1', '&:hover': { bgcolor: mensaje.trim() ? '#1D4ED8' : 'transparent' }, '&.Mui-disabled': { bgcolor: 'transparent', color: '#CBD5E1' }, transition: 'all 0.15s', flexShrink: 0 }}
+                        sx={{ width: 34, height: 34, bgcolor: (mensaje.trim() && !subiendoAdjunto) ? '#2563EB' : 'transparent', color: (mensaje.trim() && !subiendoAdjunto) ? 'white' : '#CBD5E1', '&:hover': { bgcolor: (mensaje.trim() && !subiendoAdjunto) ? '#1D4ED8' : 'transparent' }, '&.Mui-disabled': { bgcolor: 'transparent', color: '#CBD5E1' }, transition: 'all 0.15s', flexShrink: 0 }}
                     >
                         <SendIcon sx={{ fontSize: 17 }} />
                     </IconButton>
