@@ -65,6 +65,11 @@ function mensajeKey(mensaje) {
     ].join('|');
 }
 
+function idMensajeFijado(item) {
+    if (!item) return null;
+    return item.mensajeId ?? item.id ?? null;
+}
+
 function deduplicarMensajes(lista = []) {
     const mapa = new Map();
     for (const mensaje of lista) {
@@ -339,14 +344,14 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
     const togglePinMensaje = async (mensajeObjetivo) => {
         if (!mensajeObjetivo?.id) return;
 
-        const yaFijado = mensajesFijados.some(m => m.mensajeId === mensajeObjetivo.id);
+        const yaFijado = mensajesFijados.some(m => idMensajeFijado(m) === mensajeObjetivo.id);
 
         try {
             if (yaFijado) {
                 await desfijarMensaje(chatId, mensajeObjetivo.id, token);
 
                 setMensajesFijados(prev =>
-                    prev.filter(m => m.mensajeId !== mensajeObjetivo.id)
+                    prev.filter(m => idMensajeFijado(m) !== mensajeObjetivo.id)
                 );
         
                 setNotificacion({
@@ -604,7 +609,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
 
                 <Fade in={pinVisible} timeout={150}>
                     <Box
-                        onClick={() => irAMensajeFijado(pinActual.mensajeId)}
+                        onClick={() => irAMensajeFijado(idMensajeFijado(pinActual))}
                         sx={{
                             flex: 1,
                             minWidth: 0,
@@ -763,7 +768,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                 const propio = m.emisorId === usuarioActual?.id;
                                 const mensajePadre = m.parentId != null ? mensajesPorId.get(m.parentId) : null;
                                 const resumenReacciones = renderReacciones(m.reacciones || []);
-                                const estaFijado = mensajesFijados.some(p => p.mensajeId === m.id);
+                                const estaFijado = mensajesFijados.some(p => idMensajeFijado(p) === m.id);
                                 const animandoPin = pinAnimadoId === m.id;
                                 const etiquetaFecha = formatFecha(m.fechaEnvio);
                                 const mostrarSeparador = etiquetaFecha !== fechaRenderActual;
@@ -951,7 +956,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                             <ReplyIcon sx={{ fontSize: 15 }} />
                                                         </IconButton>
                                                     </Tooltip>
-                                                    <Tooltip title="Fijar mensaje">
+                                                    <Tooltip title={estaFijado ? 'Desfijar mensaje' : 'Fijar mensaje'}>
                                                         <IconButton
                                                             size="small"
                                                             onClick={() => togglePinMensaje(m)}
