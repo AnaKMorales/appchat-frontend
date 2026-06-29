@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -19,6 +19,7 @@ import {
   getComunidades,
   crearComunidad,
 } from '../services/api';
+import { uploadCommunityPhoto } from '../services/storage';
 
 const COLORES = [
   '#2563EB',
@@ -55,6 +56,8 @@ export default function PantallaComunidades({
     descripcion: '',
     fotoUrl: '',
   });
+  const [subiendoFotoComunidad, setSubiendoFotoComunidad] = useState(false);
+  const fileInputComunidadRef = useRef(null);
 
   useEffect(() => {
     cargarComunidades();
@@ -440,6 +443,39 @@ export default function PantallaComunidades({
             }
             fullWidth
           />
+
+          {/* Foto desde archivo */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Avatar src={form.fotoUrl || undefined} sx={{ width: 44, height: 44, bgcolor: '#CBD5E1' }}>
+              {!form.fotoUrl && <GroupsIcon sx={{ fontSize: 18 }} />}
+            </Avatar>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={subiendoFotoComunidad}
+              onClick={() => fileInputComunidadRef.current?.click()}
+            >
+              {subiendoFotoComunidad ? 'Subiendo...' : 'Subir foto'}
+            </Button>
+            <input
+              ref={fileInputComunidadRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                e.target.value = '';
+                setSubiendoFotoComunidad(true);
+                try {
+                  const url = await uploadCommunityPhoto(`new-${Date.now()}`, file);
+                  setForm(f => ({ ...f, fotoUrl: url }));
+                } catch { } finally {
+                  setSubiendoFotoComunidad(false);
+                }
+              }}
+            />
+          </Box>
         </DialogContent>
 
         <DialogActions

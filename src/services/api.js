@@ -30,6 +30,15 @@ export const getUsuarios = async (token) => {
     return parseResponse(response);
 };
 
+export const guardarPublicKey = async (userId, publicKeyB64, token) => {
+    const response = await fetch(`${BASE_URL}/usuarios/${userId}/publicKey`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'text/plain', 'Authorization': `Bearer ${token}` },
+        body: publicKeyB64
+    });
+    return parseResponse(response);
+};
+
 export const getUsuario = async (id, token) => {
     const response = await fetch(`${BASE_URL}/usuarios/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -71,16 +80,8 @@ export const getMensajes = async (chatId, token, page = 0) => {
 };
 
 export const subirAdjunto = async (chatId, file, token, parentId = null) => {
-    const contenidoBase64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const value = String(reader.result || '');
-            const comma = value.indexOf(',');
-            resolve(comma >= 0 ? value.slice(comma + 1) : value);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
+    const { uploadAdjunto } = await import('./storage.js');
+    const fileUrl = await uploadAdjunto(file);
 
     const response = await fetch(`${BASE_URL}/chats/${chatId}/adjuntos`, {
         method: 'POST',
@@ -91,7 +92,8 @@ export const subirAdjunto = async (chatId, file, token, parentId = null) => {
         body: JSON.stringify({
             nombre: file.name,
             mimeType: file.type || 'application/octet-stream',
-            contenidoBase64,
+            fileUrl,
+            size: file.size,
             parentId,
         })
     });

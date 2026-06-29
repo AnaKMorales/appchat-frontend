@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { isE2E, decryptMsg } from '../services/crypto';
+import { uploadAvatar, uploadGroupPhoto } from '../services/storage';
 import {
     Box,
     Typography,
@@ -42,6 +44,7 @@ import {
     crearChatGrupo,
     editarGrupo,
     eliminarGrupo,
+    editarUsuario,
 } from '../services/api';
 
 const STATUS_COLOR = {
@@ -92,6 +95,7 @@ export default function Layout({
     usuarioActual,
     setUsuarioActual,
     onLogout,
+    cryptoState,
 }) {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -104,6 +108,7 @@ export default function Layout({
 
     const [comunidades, setComunidades] = useState([]);
     const [chats, setChats] = useState([]);
+    const [decryptedPreviews, setDecryptedPreviews] = useState({});
 
     const [refreshComunidades, setRefreshComunidades] = useState(0);
 
@@ -123,12 +128,46 @@ export default function Layout({
     const [grupoEditForm, setGrupoEditForm] = useState({
         nombre: '',
         descripcion: '',
+        fotoUrl: '',
     });
+    const [subiendoFotoGrupo, setSubiendoFotoGrupo] = useState(false);
+    const [subiendoFotoPerfil, setSubiendoFotoPerfil] = useState(false);
+    const fileInputPerfilRef = useRef(null);
+    const fileInputGrupoRef = useRef(null);
 
     const statusColor =
         STATUS_COLOR[usuarioActual?.estado] || '#94A3B8';
     const statusLabel =
         STATUS_LABEL[usuarioActual?.estado] || 'Desconectado';
+
+    useEffect(() => {
+        if (!cryptoState?.privateKey || chats.length === 0) return;
+        let cancelled = false;
+        const decrypt = async () => {
+            const nuevos = {};
+            for (const c of chats) {
+                if (!isE2E(c.ultimoMensajeContenido)) continue;
+                if (decryptedPreviews[c.id] !== undefined) continue;
+                const senderPubKey = c.ultimoMensajeEmisorPublicKey;
+                const senderId = c.ultimoMensajeEmisorId;
+                if (!senderPubKey || senderId == null) continue;
+                try {
+                    const plain = await decryptMsg(
+                        c.ultimoMensajeContenido,
+                        usuarioActual?.id,
+                        cryptoState.privateKey,
+                        senderPubKey
+                    );
+                    if (plain !== null) nuevos[c.id] = plain;
+                } catch { }
+            }
+            if (!cancelled && Object.keys(nuevos).length > 0)
+                setDecryptedPreviews(prev => ({ ...prev, ...nuevos }));
+        };
+        decrypt();
+        return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chats, cryptoState?.privateKey]);
 
     const cargarComunidades = useCallback(() => {
         getComunidades(token)
@@ -247,6 +286,7 @@ export default function Layout({
         setGrupoEditForm({
             nombre: grupoSeleccionado.nombre || '',
             descripcion: grupoSeleccionado.descripcion || '',
+            fotoUrl: grupoSeleccionado.fotoUrl || '',
         });
         setDlgEditarGrupo(true);
         cerrarMenuGrupo();
@@ -260,6 +300,7 @@ export default function Layout({
                 {
                     nombre: grupoEditForm.nombre.trim(),
                     descripcion: grupoEditForm.descripcion?.trim() || '',
+                    fotoUrl: grupoEditForm.fotoUrl || null,
                 },
                 token
             );
@@ -543,11 +584,14 @@ export default function Layout({
                                     c.id
                                 }
                                 miembros={miembrosComunidad}
+                                decryptedPreviews={decryptedPreviews}
                                 onClick={() =>
                                     irAChat({
                                         chatId: c.id,
                                         tipo: 'DIRECTO',
                                         nombre: c.nombre,
+                                        participantIds: c.participantIds || [],
+                                        usuarioInterlocutorId: c.usuarioInterlocutorId,
                                     })
                                 }
                             />
@@ -609,11 +653,13 @@ export default function Layout({
                                     c.id
                                 }
                                 isGroup
+                                decryptedPreviews={decryptedPreviews}
                                 onClick={() =>
                                     irAChat({
                                         chatId: c.id,
                                         tipo: 'GRUPO',
                                         nombre: c.nombre,
+                                        participantIds: c.participantIds || [],
                                     })
                                 }
                                 onOpenMenu={(event) =>
@@ -638,14 +684,37 @@ export default function Layout({
             >
                 <Avatar
     src={usuarioActual?.fotoPerfil || undefined}
+    onClick={() => fileInputPerfilRef.current?.click()}
     sx={{
         width: 48,
         height: 48,
         bgcolor: '#CBD5E1',
+        cursor: 'pointer',
+        opacity: subiendoFotoPerfil ? 0.5 : 1,
+        '&:hover': { opacity: 0.8 },
     }}
 >
     {!usuarioActual?.fotoPerfil && usuarioActual?.nombre?.[0]}
 </Avatar>
+<input
+    ref={fileInputPerfilRef}
+    type="file"
+    accept="image/*"
+    style={{ display: 'none' }}
+    onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        e.target.value = '';
+        setSubiendoFotoPerfil(true);
+        try {
+            const url = await uploadAvatar(usuarioActual.id, file);
+            await editarUsuario(usuarioActual.id, { fotoPerfil: url }, token);
+            setUsuarioActual(prev => ({ ...prev, fotoPerfil: url }));
+        } catch { } finally {
+            setSubiendoFotoPerfil(false);
+        }
+    }}
+/>
 
                 <Box sx={{ flex: 1 }}>
                     <Typography
@@ -856,6 +925,7 @@ export default function Layout({
                                     'comunidad'
                                 )
                             }
+                            cryptoState={cryptoState}
                         />
                     )}
             </Box>
@@ -1091,6 +1161,42 @@ export default function Layout({
                             }))
                         }
                     />
+
+                    {/* Foto de grupo */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Avatar
+                            src={grupoEditForm.fotoUrl || undefined}
+                            sx={{ width: 48, height: 48, bgcolor: '#CBD5E1' }}
+                        >
+                            {!grupoEditForm.fotoUrl && <GroupsIcon sx={{ fontSize: 20 }} />}
+                        </Avatar>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            disabled={subiendoFotoGrupo}
+                            onClick={() => fileInputGrupoRef.current?.click()}
+                        >
+                            {subiendoFotoGrupo ? 'Subiendo...' : 'Cambiar foto'}
+                        </Button>
+                        <input
+                            ref={fileInputGrupoRef}
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                e.target.value = '';
+                                setSubiendoFotoGrupo(true);
+                                try {
+                                    const url = await uploadGroupPhoto(grupoSeleccionado?.id ?? 'new', file);
+                                    setGrupoEditForm(prev => ({ ...prev, fotoUrl: url }));
+                                } catch { } finally {
+                                    setSubiendoFotoGrupo(false);
+                                }
+                            }}
+                        />
+                    </Box>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
                     <Button onClick={() => setDlgEditarGrupo(false)}>Cancelar</Button>
@@ -1186,7 +1292,7 @@ function SidebarItem({
     );
 }
 
-function ChatSidebarItem({ chat, active, onClick, isGroup, miembros = [], onOpenMenu }) {
+function ChatSidebarItem({ chat, active, onClick, isGroup, miembros = [], onOpenMenu, decryptedPreviews = {} }) {
     const miembro = miembros.find(m => 
         `${m.nombre} ${m.apellido}` === chat.nombre
     );
@@ -1209,7 +1315,11 @@ function ChatSidebarItem({ chat, active, onClick, isGroup, miembros = [], onOpen
                 </Typography>
                 {chat.ultimoMensajeContenido && (
                     <Typography noWrap fontSize={11} sx={{ color: T.textMuted }}>
-                        {chat.ultimoMensajeContenido}
+                        {decryptedPreviews[chat.id] !== undefined
+                            ? decryptedPreviews[chat.id]
+                            : isE2E(chat.ultimoMensajeContenido)
+                                ? '🔒 Mensaje cifrado'
+                                : chat.ultimoMensajeContenido}
                     </Typography>
                 )}
             </Box>

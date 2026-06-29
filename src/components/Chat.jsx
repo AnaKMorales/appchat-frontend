@@ -17,6 +17,7 @@ import {
     getUsuarios,
     subirAdjunto,
 } from '../services/api';
+import { encryptMsg, decryptMsg, isE2E } from '../services/crypto';
 
 
 import CONFIG from '../services/config';
@@ -101,7 +102,7 @@ function unirReacciones(actuales = [], nuevas = []) {
     return Array.from(mapa.values());
 }
 
-export default function Chat({ token, chat, usuarioActual, onVolver }) {
+export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState }) {
     const [mensaje, setMensaje] = useState('');
     const [mensajes, setMensajes] = useState([]);
     const [cargando, setCargando] = useState(true);
@@ -129,6 +130,9 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
 
     const [usuariosMap, setUsuariosMap] = useState({});
 
+    // Mapa de contenido descifrado { msgId: plaintext }
+    const [decryptedContents, setDecryptedContents] = useState({});
+
     const { chatId, tipo, nombre } = chat;
     const esGrupo = tipo === 'GRUPO';
     const pinActual = mensajesFijados[pinActualIndex] ?? null;
@@ -141,9 +145,9 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
             const idx = prev.findIndex(actual => mensajeKey(actual) === claveIncoming || (
                 actual._optimista
                 && incoming._optimista !== true
-                && actual.contenido === incoming.contenido
                 && actual.emisorId === incoming.emisorId
                 && (actual.parentId ?? null) === (incoming.parentId ?? null)
+                && (actual.contenido === incoming.contenido || isE2E(incoming.contenido))
             ));
 
             if (idx === -1) {
@@ -271,10 +275,49 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
         }
     }, [mensajesFijados, pinActualIndex]);
 
-    const enviar = useCallback(() => {
+    // Descifrar mensajes E2E cuando llegan nuevos o cambia el mapa de usuarios
+    useEffect(() => {
+        if (!cryptoState?.privateKey || mensajes.length === 0) return;
+        let cancelled = false;
+        const decrypt = async () => {
+            const nuevos = {};
+            for (const m of mensajes) {
+                if (!m.id || !isE2E(m.contenido)) continue;
+                if (decryptedContents[m.id] !== undefined) continue;
+                const senderPubKey = usuariosMap[m.emisorId]?.publicKey;
+                if (!senderPubKey) continue;
+                try {
+                    const plain = await decryptMsg(
+                        m.contenido,
+                        usuarioActual?.id,
+                        cryptoState.privateKey,
+                        senderPubKey
+                    );
+                    if (plain !== null) nuevos[m.id] = plain;
+                } catch { /* ignorar */ }
+            }
+            if (!cancelled && Object.keys(nuevos).length > 0) {
+                setDecryptedContents(prev => ({ ...prev, ...nuevos }));
+            }
+        };
+        decrypt();
+        return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mensajes, cryptoState?.privateKey, usuariosMap]);
+
+    // Devuelve el texto a mostrar para un mensaje (descifrado si aplica)
+    const getDisplayContent = (m) => {
+        if (m._optimista) return m.contenido;
+        if (decryptedContents[m.id] !== undefined) return decryptedContents[m.id];
+        if (isE2E(m.contenido)) return '🔒 Mensaje cifrado';
+        return m.contenido;
+    };
+
+    const enviar = useCallback(async () => {
         const texto = mensaje.trim();
         if (!texto) return;
 
+        // El mensaje optimista siempre muestra el texto plano
         const msgOptimista = {
             id: null,
             contenido: texto,
@@ -293,18 +336,41 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
         inputRef.current?.focus();
 
         if (wsRef.current?.readyState === WebSocket.OPEN) {
-            const payload = {
-                chatId,
-                contenido: texto,
-            };
-
-            if (replyTo?.id != null) {
-                payload.parentId = replyTo.id;
+            // Cifrar si hay claves disponibles para los participantes
+            let contenidoFinal = texto;
+            if (cryptoState?.privateKey) {
+                // Construir mapa de claves: participantIds del DTO, o fallback por tipo de chat
+                let targetIds = chat.participantIds || [];
+                if (targetIds.length === 0) {
+                    if (!esGrupo && chat.usuarioInterlocutorId) {
+                        // Chat directo: yo + el interlocutor
+                        targetIds = [usuarioActual?.id, chat.usuarioInterlocutorId];
+                    } else {
+                        // Grupo sin lista: todos los usuarios con clave pública
+                        targetIds = Object.keys(usuariosMap).map(Number);
+                    }
+                }
+                const pubKeys = {};
+                for (const uid of targetIds) {
+                    const pk = usuariosMap[uid]?.publicKey;
+                    if (pk) pubKeys[String(uid)] = pk;
+                }
+                // Mi propia clave para poder releer mis mensajes enviados
+                if (cryptoState.publicKeyB64) {
+                    pubKeys[String(usuarioActual?.id)] = cryptoState.publicKeyB64;
+                }
+                if (Object.keys(pubKeys).length >= 2) {
+                    try {
+                        contenidoFinal = await encryptMsg(texto, cryptoState.privateKey, pubKeys);
+                    } catch { /* fallback a texto plano */ }
+                }
             }
 
+            const payload = { chatId, contenido: contenidoFinal };
+            if (replyTo?.id != null) payload.parentId = replyTo.id;
             wsRef.current.send(JSON.stringify(payload));
         }
-    }, [mensaje, chatId, usuarioActual, replyTo, upsertMensaje]);
+    }, [mensaje, chatId, usuarioActual, replyTo, upsertMensaje, cryptoState, chat, usuariosMap]);
 
     const manejarSeleccionArchivo = useCallback(async (event) => {
         const file = event.target.files?.[0];
@@ -581,6 +647,13 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                         <Typography variant="caption" color="#94A3B8">
                             {wsConectado ? 'Conectado' : 'Reconectando...'}
                         </Typography>
+                        {cryptoState?.privateKey && (
+                            <Tooltip title="Cifrado extremo a extremo activo">
+                                <Typography variant="caption" sx={{ color: '#22C55E', fontWeight: 700, ml: 0.5 }}>
+                                    🔒 E2E
+                                </Typography>
+                            </Tooltip>
+                        )}
                     </Box>
                 </Box>
                 <Tooltip title="Filtros">
@@ -906,7 +979,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver }) {
                                                         </Box>
                                                     ) : (
                                                         <Typography variant="body2" sx={{ lineHeight: 1.55, fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                                            {m.contenido}
+                                                            {getDisplayContent(m)}
                                                         </Typography>
                                                     )}
                                                 </Box>
