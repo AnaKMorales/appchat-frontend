@@ -1,6 +1,15 @@
 import CONFIG from './config';
 const BASE_URL = CONFIG.BASE_URL;
 
+// Header requerido para saltear la pantalla de advertencia de ngrok en plan free
+const NGROK_HEADER = { 'ngrok-skip-browser-warning': '1' };
+
+// Wrapper de fetch que inyecta el header de ngrok en todas las requests
+function apiFetch(url, options = {}) {
+    const headers = { ...NGROK_HEADER, ...(options.headers || {}) };
+    return fetch(url, { ...options, headers });
+}
+
 async function parseResponse(response) {
     if (!response.ok) {
         const err = new Error(`HTTP ${response.status}`);
@@ -13,7 +22,7 @@ async function parseResponse(response) {
 
 // Auth 
 export const login = async (email, password) => {
-    const response = await fetch(`${BASE_URL}/auth/login`, {
+    const response = await apiFetch(`${BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -24,14 +33,14 @@ export const login = async (email, password) => {
 
 // Usuarios 
 export const getUsuarios = async (token) => {
-    const response = await fetch(`${BASE_URL}/usuarios`, {
+    const response = await apiFetch(`${BASE_URL}/usuarios`, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
     return parseResponse(response);
 };
 
 export const guardarPublicKey = async (userId, publicKeyB64, token) => {
-    const response = await fetch(`${BASE_URL}/usuarios/${userId}/publicKey`, {
+    const response = await apiFetch(`${BASE_URL}/usuarios/${userId}/publicKey`, {
         method: 'PUT',
         headers: { 'Content-Type': 'text/plain', 'Authorization': `Bearer ${token}` },
         body: publicKeyB64
@@ -40,14 +49,14 @@ export const guardarPublicKey = async (userId, publicKeyB64, token) => {
 };
 
 export const getUsuario = async (id, token) => {
-    const response = await fetch(`${BASE_URL}/usuarios/${id}`, {
+    const response = await apiFetch(`${BASE_URL}/usuarios/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
     return parseResponse(response);
 };
 
 export const editarUsuario = async (id, datos, token) => {
-    const response = await fetch(`${BASE_URL}/usuarios/${id}`, {
+    const response = await apiFetch(`${BASE_URL}/usuarios/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(datos)
@@ -56,7 +65,7 @@ export const editarUsuario = async (id, datos, token) => {
 };
 
 export const cambiarEstado = async (id, estado, token) => {
-    const response = await fetch(`${BASE_URL}/usuarios/${id}/estado`, {
+    const response = await apiFetch(`${BASE_URL}/usuarios/${id}/estado`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ estado })
@@ -66,14 +75,14 @@ export const cambiarEstado = async (id, estado, token) => {
 
 // Chats directos
 export const getChats = async (comunidadId, token) => {
-    const response = await fetch(`${BASE_URL}/chats/comunidad/${comunidadId}`, {
+    const response = await apiFetch(`${BASE_URL}/chats/comunidad/${comunidadId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
     return parseResponse(response);
 };
 
 export const getMensajes = async (chatId, token, page = 0) => {
-    const response = await fetch(`${BASE_URL}/chats/${chatId}/mensajes?page=${page}`, {
+    const response = await apiFetch(`${BASE_URL}/chats/${chatId}/mensajes?page=${page}`, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
     return parseResponse(response);
@@ -83,7 +92,7 @@ export const subirAdjunto = async (chatId, file, token, parentId = null) => {
     const { uploadAdjunto } = await import('./storage.js');
     const fileUrl = await uploadAdjunto(file);
 
-    const response = await fetch(`${BASE_URL}/chats/${chatId}/adjuntos`, {
+    const response = await apiFetch(`${BASE_URL}/chats/${chatId}/adjuntos`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -101,7 +110,7 @@ export const subirAdjunto = async (chatId, file, token, parentId = null) => {
 };
 
 export const crearChat = async (usuarioDestinoId, comunidadId, token) => {
-    const response = await fetch(`${BASE_URL}/chats`, {
+    const response = await apiFetch(`${BASE_URL}/chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ usuarioDestinoId, comunidadId })
@@ -111,7 +120,7 @@ export const crearChat = async (usuarioDestinoId, comunidadId, token) => {
 
 // Chats grupales 
 export const crearChatGrupo = async (nombre, descripcion, comunidadId, usuarioIds, token) => {
-    const response = await fetch(`${BASE_URL}/chat`, {
+    const response = await apiFetch(`${BASE_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ nombre, descripcion, comunidadId, usuarioIds })
@@ -120,7 +129,7 @@ export const crearChatGrupo = async (nombre, descripcion, comunidadId, usuarioId
 };
 
 export const agregarMiembrosGrupo = async (chatId, usuarioIds, token) => {
-    const response = await fetch(`${BASE_URL}/chat/${chatId}/miembros`, {
+    const response = await apiFetch(`${BASE_URL}/chat/${chatId}/miembros`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ usuarioIds })
@@ -129,7 +138,7 @@ export const agregarMiembrosGrupo = async (chatId, usuarioIds, token) => {
 };
 
 export const editarGrupo = async (chatId, datos, token) => {
-    const response = await fetch(`${BASE_URL}/chat/${chatId}`, {
+    const response = await apiFetch(`${BASE_URL}/chat/${chatId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(datos)
@@ -138,7 +147,7 @@ export const editarGrupo = async (chatId, datos, token) => {
 };
 
 export const eliminarGrupo = async (chatId, token) => {
-    const response = await fetch(`${BASE_URL}/chat/${chatId}`, {
+    const response = await apiFetch(`${BASE_URL}/chat/${chatId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -146,7 +155,7 @@ export const eliminarGrupo = async (chatId, token) => {
 };
 
 export const eliminarMiembroGrupo = async (chatId, userId, token) => {
-    const response = await fetch(`${BASE_URL}/chat/${chatId}/miembros/${userId}`, {
+    const response = await apiFetch(`${BASE_URL}/chat/${chatId}/miembros/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -154,7 +163,7 @@ export const eliminarMiembroGrupo = async (chatId, userId, token) => {
 };
 
 export const fijarMensaje = async (chatId, mensajeId, token) => {
-    const response = await fetch(`${BASE_URL}/chat/${chatId}/mensajes/${mensajeId}/pin`, {
+    const response = await apiFetch(`${BASE_URL}/chat/${chatId}/mensajes/${mensajeId}/pin`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${token}`
@@ -165,7 +174,7 @@ export const fijarMensaje = async (chatId, mensajeId, token) => {
 };
 
 export const desfijarMensaje = async (chatId, mensajeId, token) => {
-    const response = await fetch(`${BASE_URL}/chat/${chatId}/mensajes/${mensajeId}/pin`, {
+    const response = await apiFetch(`${BASE_URL}/chat/${chatId}/mensajes/${mensajeId}/pin`, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${token}`
@@ -176,7 +185,7 @@ export const desfijarMensaje = async (chatId, mensajeId, token) => {
 };
 
 export const getMensajesFijados = async (chatId, token) => {
-    const response = await fetch(`${BASE_URL}/chat/${chatId}/mensajes/pin`, {
+    const response = await apiFetch(`${BASE_URL}/chat/${chatId}/mensajes/pin`, {
         headers: {
             'Authorization': `Bearer ${token}`
         }
@@ -187,21 +196,21 @@ export const getMensajesFijados = async (chatId, token) => {
 
 // Comunidades
 export const getComunidades = async (token) => {
-    const response = await fetch(`${BASE_URL}/comunidades`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades`, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
     return parseResponse(response);
 };
 
 export const getComunidadDetalle = async (id, token) => {
-    const response = await fetch(`${BASE_URL}/comunidades/${id}`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
     return parseResponse(response);
 };
 
 export const crearComunidad = async (datos, token) => {
-    const response = await fetch(`${BASE_URL}/comunidades`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(datos)
@@ -210,7 +219,7 @@ export const crearComunidad = async (datos, token) => {
 };
 
 export const editarComunidad = async (id, datos, token) => {
-    const response = await fetch(`${BASE_URL}/comunidades/${id}`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(datos)
@@ -219,7 +228,7 @@ export const editarComunidad = async (id, datos, token) => {
 };
 
 export const eliminarComunidad = async (id, token) => {
-    const response = await fetch(`${BASE_URL}/comunidades/${id}`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -227,7 +236,7 @@ export const eliminarComunidad = async (id, token) => {
 };
 
 export const invitarUsuario = async (comunidadId, username, token) => {
-    const response = await fetch(`${BASE_URL}/comunidades/${comunidadId}/invitar`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/${comunidadId}/invitar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ username })
@@ -236,7 +245,7 @@ export const invitarUsuario = async (comunidadId, username, token) => {
 };
 
 export const salirComunidad = async (comunidadId, token) => {
-    const response = await fetch(`${BASE_URL}/comunidades/${comunidadId}/salir`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/${comunidadId}/salir`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -244,7 +253,7 @@ export const salirComunidad = async (comunidadId, token) => {
 };
 
 export const eliminarMiembroComunidad = async (comunidadId, userId, token) => {
-    const response = await fetch(`${BASE_URL}/comunidades/${comunidadId}/mimebros/${userId}`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/${comunidadId}/mimebros/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -252,7 +261,7 @@ export const eliminarMiembroComunidad = async (comunidadId, userId, token) => {
 };
 
 export const aceptarInvitacion = async (invitacionId, token) => {
-    const response = await fetch(`${BASE_URL}/comunidades/invitaciones/${invitacionId}/aceptar`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/invitaciones/${invitacionId}/aceptar`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -260,14 +269,14 @@ export const aceptarInvitacion = async (invitacionId, token) => {
 };
 
 export const rechazarInvitacion = async (invitacionId, token) => {
-    const response = await fetch(`${BASE_URL}/comunidades/invitaciones/${invitacionId}/rechazar`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/invitaciones/${invitacionId}/rechazar`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 };
 export const register = async (datos) => {
-    const response = await fetch(`${BASE_URL}/auth/registro`, {
+    const response = await apiFetch(`${BASE_URL}/auth/registro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datos)

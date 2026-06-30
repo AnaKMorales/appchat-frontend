@@ -42,7 +42,7 @@ export default function Notificaciones({ token, onInvitacionAceptada, chatActivo
     // WebSocket global para notificaciones de mensajes
     useEffect(() => {
         if (!token) return;
-        const ws = new WebSocket(`${WS_URL}?token=${token}`);
+        const ws = new WebSocket(`${WS_URL}?token=${token}&ngrok-skip-browser-warning=1`);
         wsRef.current = ws;
 
         ws.onmessage = (e) => {

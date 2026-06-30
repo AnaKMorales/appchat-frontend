@@ -220,7 +220,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
             })
             .catch(() => {});
 
-        const ws = new WebSocket(`${WS_URL}?token=${token}`);
+        const ws = new WebSocket(`${WS_URL}?token=${token}&ngrok-skip-browser-warning=1`);
         wsRef.current = ws;
 
         ws.onopen = () => { setWsConectado(true); };
