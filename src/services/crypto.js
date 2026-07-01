@@ -120,11 +120,14 @@ async function deriveWrapKey(myPriv, theirPub) {
  * Cifra `plaintext` para todos los participantes con clave pública conocida.
  *
  * @param {string} plaintext
- * @param {CryptoKey} myPrivateKey  - clave privada ECDH del remitente
+ * @param {CryptoKey} myPrivateKey      - clave privada ECDH del remitente
  * @param {Object}  participantPublicKeysB64  - { userId: publicKeyB64, ... }
+ * @param {string}  [myPublicKeyB64]    - clave pública del remitente (SPKI Base64)
+ *                                        se embebe en el payload para que el receptor
+ *                                        pueda descifrar aunque la DB cambie.
  * @returns {string} JSON cifrado, o el texto plano si no hay participantes con clave
  */
-export async function encryptMsg(plaintext, myPrivateKey, participantPublicKeysB64) {
+export async function encryptMsg(plaintext, myPrivateKey, participantPublicKeysB64, myPublicKeyB64) {
     const entries = Object.entries(participantPublicKeysB64).filter(([, v]) => !!v);
     if (entries.length === 0) return plaintext;
 
@@ -161,7 +164,10 @@ export async function encryptMsg(plaintext, myPrivateKey, participantPublicKeysB
 
     if (Object.keys(keys).length === 0) return plaintext;
 
-    return JSON.stringify({ e2e: true, iv: toB64(iv), ct: toB64(new Uint8Array(ct)), keys });
+    const payload = { e2e: true, iv: toB64(iv), ct: toB64(new Uint8Array(ct)), keys };
+    // Embeber la clave pública del emisor en el mensaje para descifrado estable
+    if (myPublicKeyB64) payload.spk = myPublicKeyB64;
+    return JSON.stringify(payload);
 }
 
 /**
@@ -187,8 +193,13 @@ export async function decryptMsg(content, myUserId, myPrivateKey, senderPublicKe
     const wiv = fromB64(wrapped.slice(0, dotIdx));
     const wk  = fromB64(wrapped.slice(dotIdx + 1));
 
+    // Preferir la clave pública embebida en el mensaje (stable al momento de cifrar)
+    // sobre la clave actual de la DB (que puede haber rotado)
+    const effectiveSenderKey = parsed.spk || senderPublicKeyB64;
+    if (!effectiveSenderKey) return null;
+
     try {
-        const senderPub = await importPubKey(senderPublicKeyB64);
+        const senderPub = await importPubKey(effectiveSenderKey);
         const wrapKey   = await deriveWrapKey(myPrivateKey, senderPub);
 
         const msgKey = await crypto.subtle.unwrapKey(

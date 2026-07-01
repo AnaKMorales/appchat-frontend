@@ -129,6 +129,11 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
     const [subiendoAdjunto, setSubiendoAdjunto] = useState(false);
 
     const [usuariosMap, setUsuariosMap] = useState({});
+    // Ref para guardar el plaintext de mensajes enviados por el propio usuario
+    // Evita depender de self-ECDH (cifrar/descifrar con tu propia clave) que puede fallar
+    const sentTextsRef = useRef({});
+    // Timestamp de la última carga de usuariosMap (para refrescar antes de cifrar si es viejo)
+    const usuariosMapTimestampRef = useRef(0);
 
     // Mapa de contenido descifrado { msgId: plaintext }
     const [decryptedContents, setDecryptedContents] = useState({});
@@ -139,6 +144,10 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
 
     const upsertMensaje = useCallback((incoming) => {
         if (!incoming) return;
+
+        // Detectar si es el echo del servidor que reemplaza un optimista E2E propio
+        // para guardar el texto plano sin depender de descifrado
+        let resolvedEntry = null;
 
         setMensajes(prev => {
             const claveIncoming = mensajeKey(incoming);
@@ -155,6 +164,18 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
             }
 
             const actual = prev[idx];
+
+            // Si reemplazamos un mensaje optimista propio con el echo cifrado del servidor,
+            // recuperamos el plaintext guardado para mostrarlo sin descifrar
+            if (actual._optimista && incoming.id && isE2E(incoming.contenido)) {
+                const sentKey = `${actual.emisorId}|${actual.parentId ?? 'null'}|${actual.contenido}`;
+                const savedText = sentTextsRef.current[sentKey];
+                if (savedText !== undefined) {
+                    resolvedEntry = { id: incoming.id, text: savedText };
+                    delete sentTextsRef.current[sentKey];
+                }
+            }
+
             const combinado = {
                 ...actual,
                 ...incoming,
@@ -166,6 +187,12 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
             copia[idx] = combinado;
             return deduplicarMensajes(copia);
         });
+
+        // Guardar el plaintext en decryptedContents sin depender de descifrado E2E propio
+        if (resolvedEntry) {
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+            setDecryptedContents(prev => ({ ...prev, [resolvedEntry.id]: resolvedEntry.text }));
+        }
     }, []);
 
     // Upsert: reemplaza cualquier reacción previa del mismo usuario+tipo (evita duplicados tmp/id)
@@ -204,6 +231,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
             const map = {};
             lista.forEach(u => { map[u.id] = u; });
             setUsuariosMap(map);
+            usuariosMapTimestampRef.current = Date.now();
         }).catch(() => {});
 
         getMensajes(chatId, token)
@@ -281,20 +309,35 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
         let cancelled = false;
         const decrypt = async () => {
             const nuevos = {};
+            const e2eMensajes = mensajes.filter(m => m.id && isE2E(m.contenido));
+            if (e2eMensajes.length > 0) {
+                console.log(`[E2E] Intentando descifrar ${e2eMensajes.length} mensajes E2E`);
+                console.log('[E2E] usuariosMap keys:', Object.keys(usuariosMap));
+                console.log('[E2E] usuariosMap publicKeys:', Object.entries(usuariosMap).map(([id, u]) => `${id}:${u.publicKey ? 'OK' : 'NULL'}`));
+                console.log('[E2E] myUserId:', usuarioActual?.id);
+            }
             for (const m of mensajes) {
                 if (!m.id || !isE2E(m.contenido)) continue;
                 if (decryptedContents[m.id] !== undefined) continue;
                 const senderPubKey = usuariosMap[m.emisorId]?.publicKey;
-                if (!senderPubKey) continue;
+                if (!senderPubKey) {
+                    console.warn(`[E2E] Sin publicKey para emisorId=${m.emisorId}, mensaje id=${m.id}`);
+                    continue;
+                }
                 try {
+                    const parsed = JSON.parse(m.contenido);
+                    const hasMyKey = !!parsed?.keys?.[String(usuarioActual?.id)];
+                    console.log(`[E2E] Msg id=${m.id} emisor=${m.emisorId} hasMyKey=${hasMyKey} keys:`, Object.keys(parsed?.keys ?? {}));
                     const plain = await decryptMsg(
                         m.contenido,
                         usuarioActual?.id,
                         cryptoState.privateKey,
                         senderPubKey
                     );
-                    if (plain !== null) nuevos[m.id] = plain;
-                } catch { /* ignorar */ }
+                    // null = intento fallido (clave rotada); lo marcamos para no reintentar
+                    nuevos[m.id] = plain;
+                    if (plain === null) console.warn(`[E2E] decryptMsg devolvió null para msg id=${m.id} (clave rotada o incompatible)`);
+                } catch(e) { console.error(`[E2E] Error descifrando msg id=${m.id}:`, e); }
             }
             if (!cancelled && Object.keys(nuevos).length > 0) {
                 setDecryptedContents(prev => ({ ...prev, ...nuevos }));
@@ -308,7 +351,10 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
     // Devuelve el texto a mostrar para un mensaje (descifrado si aplica)
     const getDisplayContent = (m) => {
         if (m._optimista) return m.contenido;
-        if (decryptedContents[m.id] !== undefined) return decryptedContents[m.id];
+        if (m.id in decryptedContents) {
+            if (decryptedContents[m.id] === null) return '🔒 Mensaje inaccesible (clave cambiada)';
+            return decryptedContents[m.id];
+        }
         if (isE2E(m.contenido)) return '🔒 Mensaje cifrado';
         return m.contenido;
     };
@@ -339,6 +385,19 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
             // Cifrar si hay claves disponibles para los participantes
             let contenidoFinal = texto;
             if (cryptoState?.privateKey) {
+                // Refrescar usuariosMap si tiene más de 30s para asegurar claves actualizadas
+                let currentMap = usuariosMap;
+                if (Date.now() - usuariosMapTimestampRef.current > 30000) {
+                    try {
+                        const lista = await getUsuarios(token);
+                        const freshMap = {};
+                        lista.forEach(u => { freshMap[u.id] = u; });
+                        setUsuariosMap(freshMap);
+                        usuariosMapTimestampRef.current = Date.now();
+                        currentMap = freshMap;
+                    } catch { /* usar mapa en caché */ }
+                }
+
                 // Construir mapa de claves: participantIds del DTO, o fallback por tipo de chat
                 let targetIds = chat.participantIds || [];
                 if (targetIds.length === 0) {
@@ -347,30 +406,38 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
                         targetIds = [usuarioActual?.id, chat.usuarioInterlocutorId];
                     } else {
                         // Grupo sin lista: todos los usuarios con clave pública
-                        targetIds = Object.keys(usuariosMap).map(Number);
+                        targetIds = Object.keys(currentMap).map(Number);
                     }
                 }
                 const pubKeys = {};
                 for (const uid of targetIds) {
-                    const pk = usuariosMap[uid]?.publicKey;
+                    const pk = currentMap[uid]?.publicKey;
                     if (pk) pubKeys[String(uid)] = pk;
                 }
-                // Mi propia clave para poder releer mis mensajes enviados
+                // Mi propia clave pública actual (siempre la de cryptoState, no la del mapa)
                 if (cryptoState.publicKeyB64) {
                     pubKeys[String(usuarioActual?.id)] = cryptoState.publicKeyB64;
                 }
                 if (Object.keys(pubKeys).length >= 2) {
                     try {
-                        contenidoFinal = await encryptMsg(texto, cryptoState.privateKey, pubKeys);
+                        contenidoFinal = await encryptMsg(texto, cryptoState.privateKey, pubKeys, cryptoState.publicKeyB64);
                     } catch { /* fallback a texto plano */ }
                 }
             }
 
             const payload = { chatId, contenido: contenidoFinal };
             if (replyTo?.id != null) payload.parentId = replyTo.id;
+
+            // Guardar el plaintext del mensaje propio ANTES de enviarlo
+            // El key debe coincidir con el que usa upsertMensaje al recibir el echo del servidor
+            if (isE2E(contenidoFinal)) {
+                const sentKey = `${usuarioActual?.id}|${replyTo?.id ?? 'null'}|${texto}`;
+                sentTextsRef.current[sentKey] = texto;
+            }
+
             wsRef.current.send(JSON.stringify(payload));
         }
-    }, [mensaje, chatId, usuarioActual, replyTo, upsertMensaje, cryptoState, chat, usuariosMap]);
+    }, [mensaje, chatId, usuarioActual, replyTo, upsertMensaje, cryptoState, chat, usuariosMap, token]);
 
     const manejarSeleccionArchivo = useCallback(async (event) => {
         const file = event.target.files?.[0];

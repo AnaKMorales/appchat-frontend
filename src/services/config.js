@@ -1,6 +1,6 @@
 const CONFIG = {
-    BASE_URL: 'https://dfed-148-227-105-176.ngrok-free.app/appchat/api',
-    WS_URL: 'wss://dfed-148-227-105-176.ngrok-free.app/appchat/chat'
+    BASE_URL: 'https://2e92-148-227-105-176.ngrok-free.app/appchat/api',
+    WS_URL: 'wss://2e92-148-227-105-176.ngrok-free.app/appchat/chat'
 };
 
 export default CONFIG;

@@ -35,14 +35,22 @@ function App() {
     initKeys(usuarioActual.id)
       .then(async (keys) => {
         setCryptoState(keys);
+        console.log('[E2E] Keys initialized, publicKeyB64 (primeros 40 chars):', keys.publicKeyB64?.substring(0, 40));
+        console.log('[E2E] usuarioActual.publicKey en DB:', usuarioActual.publicKey?.substring(0, 40) ?? 'NULL');
         // Subir la clave pública si cambió o no estaba registrada
         if (keys.publicKeyB64 !== usuarioActual.publicKey) {
+          console.log('[E2E] Guardando nueva publicKey en servidor...');
           try {
             await guardarPublicKey(usuarioActual.id, keys.publicKeyB64, token);
-          } catch { /* ignorar, se reintentará */ }
+            console.log('[E2E] publicKey guardada OK');
+          } catch(e) {
+            console.error('[E2E] ERROR al guardar publicKey:', e?.message ?? e);
+          }
+        } else {
+          console.log('[E2E] publicKey ya actualizada, no se necesita subir');
         }
       })
-      .catch(() => { /* E2E no disponible en este entorno */ });
+      .catch((e) => { console.error('[E2E] initKeys falló:', e); });
   }, [usuarioActual?.id, token]);
 
   const handleLogin = (t) => {
