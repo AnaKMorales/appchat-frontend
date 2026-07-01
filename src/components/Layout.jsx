@@ -758,6 +758,8 @@ export default function Layout({
                         handleInvitacionAceptada
                     }
                     chatActivoId={chatActivo?.chatId}
+                    cryptoState={cryptoState}
+                    usuarioActual={usuarioActual}
                 />
 
                 <IconButton

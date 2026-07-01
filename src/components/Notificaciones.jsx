@@ -7,25 +7,33 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import GroupsIcon from '@mui/icons-material/Groups';
 import MessageIcon from '@mui/icons-material/Message';
 import { aceptarInvitacion, rechazarInvitacion } from '../services/api';
+import { isE2E, decryptMsg } from '../services/crypto';
 
 import CONFIG from '../services/config';
 const WS_URL = CONFIG.WS_URL;
 
+const NGROK_HEADER = { 'ngrok-skip-browser-warning': '1' };
+
 const getInvitaciones = async (token) => {
     const r = await fetch(`${CONFIG.BASE_URL}/comunidades/invitaciones/pendientes`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}`, ...NGROK_HEADER }
     });
     if (!r.ok) return [];
     return r.json();
 };
 
-export default function Notificaciones({ token, onInvitacionAceptada, chatActivoId }) {
+export default function Notificaciones({ token, onInvitacionAceptada, chatActivoId, cryptoState, usuarioActual }) {
     const [anchor, setAnchor] = useState(null);
     const [invitaciones, setInvitaciones] = useState([]);
     const [procesando, setProcesando] = useState(null);
     const [msgNuevos, setMsgNuevos] = useState([]); // { chatId, nombre, contenido }
     const [snack, setSnack] = useState(null);
     const wsRef = useRef(null);
+    // Refs para leer siempre el valor actualizado dentro del handler WS sin reconectar
+    const cryptoStateRef = useRef(cryptoState);
+    const usuarioActualRef = useRef(usuarioActual);
+    useEffect(() => { cryptoStateRef.current = cryptoState; }, [cryptoState]);
+    useEffect(() => { usuarioActualRef.current = usuarioActual; }, [usuarioActual]);
 
     const cargarInvitaciones = useCallback(() => {
         if (!token) return;
@@ -45,7 +53,7 @@ export default function Notificaciones({ token, onInvitacionAceptada, chatActivo
         const ws = new WebSocket(`${WS_URL}?token=${token}&ngrok-skip-browser-warning=1`);
         wsRef.current = ws;
 
-        ws.onmessage = (e) => {
+        ws.onmessage = async (e) => {
             try {
                 const msg = JSON.parse(e.data);
                 if (msg.type === 'ERROR' || !msg.contenido) return;
@@ -54,12 +62,38 @@ export default function Notificaciones({ token, onInvitacionAceptada, chatActivo
                     return;
                 }
 
+                let textoNotif = '🔒 Mensaje cifrado';
+                if (isE2E(msg.contenido)) {
+                    // Intentar descifrar usando la clave pública del emisor embebida en el mensaje (spk)
+                    const cs = cryptoStateRef.current;
+                    const ua = usuarioActualRef.current;
+                    if (cs?.privateKey && ua?.id) {
+                        try {
+                            const parsed = JSON.parse(msg.contenido);
+                            const senderKey = parsed.spk;
+                            if (senderKey) {
+                                const plain = await decryptMsg(
+                                    msg.contenido,
+                                    ua.id,
+                                    cs.privateKey,
+                                    senderKey
+                                );
+                                if (plain !== null) textoNotif = plain;
+                            }
+                        } catch { /* mantener '🔒 Mensaje cifrado' */ }
+                    }
+                } else {
+                    textoNotif = msg.contenido.length > 60
+                        ? msg.contenido.substring(0, 60) + '...'
+                        : msg.contenido;
+                }
+
                 const notif = {
                     id: Date.now(),
                     chatId: msg.chatId || null,
                     nombre: msg.chatNombre || null,
                     emisor: msg.emisorNombre ? `${msg.emisorNombre} ${msg.emisorApellido || ''}`.trim() : 'Alguien',
-                    contenido: msg.contenido.length > 50 ? msg.contenido.substring(0, 50) + '...' : msg.contenido,
+                    contenido: textoNotif.length > 60 ? textoNotif.substring(0, 60) + '...' : textoNotif,
                 };
                 setMsgNuevos(prev => [...prev.slice(-4), notif]);
                 setSnack(notif);
