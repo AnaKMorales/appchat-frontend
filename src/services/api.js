@@ -11,12 +11,27 @@ function apiFetch(url, options = {}) {
 }
 
 async function parseResponse(response) {
+    const text = await response.text();
+
     if (!response.ok) {
-        const err = new Error(`HTTP ${response.status}`);
+        let mensaje = `HTTP ${response.status}`;
+        if (text) {
+            try {
+                // Errores 
+                const data = JSON.parse(text);
+                mensaje = data.error || data.message || mensaje;
+            } catch {
+                // Respuesta 
+                mensaje = /<html/i.test(text)
+                    ? 'Datos invalidos. Revisa que todos los campos esten completos.'
+                    : text;
+            }
+        }
+        const err = new Error(mensaje);
         err.status = response.status;
         throw err;
     }
-    const text = await response.text();
+
     return text ? JSON.parse(text) : null;
 }
 
