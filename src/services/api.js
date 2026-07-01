@@ -17,11 +17,11 @@ async function parseResponse(response) {
         let mensaje = `HTTP ${response.status}`;
         if (text) {
             try {
-                // Errores 
+                // el backend manda {"error":"..."}
                 const data = JSON.parse(text);
                 mensaje = data.error || data.message || mensaje;
             } catch {
-                // Respuesta 
+                // si no es json es la pagina de error de payara
                 mensaje = /<html/i.test(text)
                     ? 'Datos invalidos. Revisa que todos los campos esten completos.'
                     : text;
