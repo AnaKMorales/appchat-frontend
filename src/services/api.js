@@ -268,7 +268,7 @@ export const salirComunidad = async (comunidadId, token) => {
 };
 
 export const eliminarMiembroComunidad = async (comunidadId, userId, token) => {
-    const response = await apiFetch(`${BASE_URL}/comunidades/${comunidadId}/mimebros/${userId}`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/${comunidadId}/miembros/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
     });
