@@ -710,10 +710,34 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography fontWeight={600} fontSize={15} color="#1E293B" noWrap>{nombre}</Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: wsConectado ? '#22C55E' : '#94A3B8' }} />
-                        <Typography variant="caption" color="#94A3B8">
-                            {wsConectado ? 'Conectado' : 'Reconectando...'}
-                        </Typography>
+                        {(() => {
+                            // Para chats directos: mostrar estado real del interlocutor
+                            if (!esGrupo && chat.usuarioInterlocutorId) {
+                                const interlocutor = usuariosMap[chat.usuarioInterlocutorId];
+                                const ESTADO_MAP = {
+                                    EN_LINEA:     { color: '#22C55E', label: 'En línea' },
+                                    OCUPADO:      { color: '#F59E0B', label: 'Ocupado' },
+                                    INVISIBLE:    { color: '#94A3B8', label: 'Invisible' },
+                                    DESCONECTADO: { color: '#94A3B8', label: 'Desconectado' },
+                                };
+                                const est = ESTADO_MAP[interlocutor?.estado] ?? { color: '#94A3B8', label: 'Desconectado' };
+                                return (
+                                    <>
+                                        <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: est.color }} />
+                                        <Typography variant="caption" color={est.color} fontWeight={600}>{est.label}</Typography>
+                                    </>
+                                );
+                            }
+                            // Para grupos: mostrar estado del WS
+                            return (
+                                <>
+                                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: wsConectado ? '#22C55E' : '#94A3B8' }} />
+                                    <Typography variant="caption" color="#94A3B8">
+                                        {wsConectado ? 'Conectado' : 'Reconectando...'}
+                                    </Typography>
+                                </>
+                            );
+                        })()}
                         {cryptoState?.privateKey && (
                             <Tooltip title="Cifrado extremo a extremo activo">
                                 <Typography variant="caption" sx={{ color: '#22C55E', fontWeight: 700, ml: 0.5 }}>

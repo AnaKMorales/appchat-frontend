@@ -209,6 +209,12 @@ export default function Perfil({ token, usuarioActual, onVolver, onActualizar })
                     <Box sx={{ textAlign: 'center' }}>
                         <Typography fontWeight={700} fontSize={18} color="#1E293B">{nombre} {apellido}</Typography>
                         <Typography variant="body2" color="#64748B">@{usuarioActual?.username}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75, mt: 0.75 }}>
+                            <Box sx={{ width: 9, height: 9, bgcolor: estadoActual.color, borderRadius: '50%' }} />
+                            <Typography variant="body2" sx={{ color: estadoActual.color, fontWeight: 600, fontSize: 13 }}>
+                                {estadoActual.label}
+                            </Typography>
+                        </Box>
                         <Typography variant="caption" color="#94A3B8" sx={{ display: 'block', mt: 0.5 }}>
                             {supabase
                                 ? 'Click en la cámara para cambiar tu foto'
