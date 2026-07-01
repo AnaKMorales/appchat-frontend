@@ -587,13 +587,13 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
         const contenido = filtros.contenido.trim().toLowerCase();
         const usuario = filtros.usuario.trim();
         const fecha = filtros.fecha;
-        const textoMensaje = `${m.contenido ?? ''}`.toLowerCase();
-        const textoUsuario = `${m.emisorNombre ?? ''} ${m.emisorApellido ?? ''} ${m.emisorEmail ?? ''} ${m.emisorId ?? ''}`.toLowerCase();
+
+        // Usar el texto visible (descifrado si E2E) para que el filtro funcione con mensajes cifrados
+        const textoMensaje = getDisplayContent(m).toLowerCase();
 
         if (contenido && !textoMensaje.includes(contenido)) return false;
         if (usuario && String(m.emisorId ?? '') !== usuario) return false;
         if (fecha && obtenerFechaISO(m.fechaEnvio) !== fecha) return false;
-        if (!usuario && filtros.usuario.trim() && !textoUsuario.includes(usuario)) return false;
         return true;
     };
 
@@ -804,25 +804,25 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
                 </IconButton>
             </Box>
         )}
-            <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, bgcolor: '#F8FAFC', position: 'relative' }}>
-                <Collapse in={buscadorAbierto} timeout={200} unmountOnExit>
-                    <Box sx={{ position: 'absolute', top: 12, right: 24, zIndex: 40, width: { xs: 'calc(100% - 48px)', sm: 360 }, p: 1.25, bgcolor: 'white', border: '1px solid #E2E8F0', borderRadius: 2, boxShadow: '0 8px 20px rgba(2,6,23,0.08)' }}>
-                        <Stack spacing={1}>
-                            <TextField
-                                fullWidth
-                                size="small"
-                                placeholder="Buscar por contenido"
-                                value={filtros.contenido}
-                                onChange={e => setFiltros(prev => ({ ...prev, contenido: e.target.value }))}
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <SearchIcon sx={{ fontSize: 18, color: '#94A3B8' }} />
-                                        </InputAdornment>
-                                    ),
-                                }}
-                                sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F8FAFC', borderRadius: 2 } }}
-                            />
+            <Collapse in={buscadorAbierto} timeout={200} unmountOnExit>
+                <Box sx={{ px: 2, py: 1.5, bgcolor: 'white', borderBottom: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(2,6,23,0.06)' }}>
+                    <Stack spacing={1}>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            placeholder="Buscar por contenido"
+                            value={filtros.contenido}
+                            onChange={e => setFiltros(prev => ({ ...prev, contenido: e.target.value }))}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon sx={{ fontSize: 18, color: '#94A3B8' }} />
+                                    </InputAdornment>
+                                ),
+                            }}
+                            sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F8FAFC', borderRadius: 2 } }}
+                        />
+                        <Box sx={{ display: 'flex', gap: 1 }}>
                             <TextField
                                 fullWidth
                                 size="small"
@@ -842,49 +842,43 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
                                 onChange={e => setFiltros(prev => ({ ...prev, usuario: e.target.value }))}
                                 sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#F8FAFC', borderRadius: 2 } }}
                             >
-                                <MenuItem value="">Todos los usuarios</MenuItem>
+                                <MenuItem value="">Todos</MenuItem>
                                 {usuariosParaFiltro.map(usuario => (
                                     <MenuItem key={usuario.emisorId} value={String(usuario.emisorId)}>
                                         {formatNombreMensaje(usuario)}
                                     </MenuItem>
                                 ))}
                             </TextField>
-                        </Stack>
+                        </Box>
+                    </Stack>
 
-                        {(filtros.contenido || filtros.fecha || filtros.usuario) && (
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.25 }}>
-                                {filtros.contenido && (
-                                    <Chip
-                                        label={`Contenido: ${filtros.contenido}`}
-                                        size="small"
-                                        onDelete={() => setFiltros(prev => ({ ...prev, contenido: '' }))}
-                                    />
-                                )}
-                                {filtros.fecha && (
-                                    <Chip
-                                        label={`Fecha: ${filtros.fecha}`}
-                                        size="small"
-                                        onDelete={() => setFiltros(prev => ({ ...prev, fecha: '' }))}
-                                    />
-                                )}
-                                {filtros.usuario && (
-                                    <Chip
-                                        label={`Usuario: ${usuariosParaFiltro.find(u => String(u.emisorId) === filtros.usuario)?.emisorNombre ?? filtros.usuario}`}
-                                        size="small"
-                                        onDelete={() => setFiltros(prev => ({ ...prev, usuario: '' }))}
-                                    />
-                                )}
+                    {(filtros.contenido || filtros.fecha || filtros.usuario) && (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                            {filtros.contenido && (
+                                <Chip label={`Contenido: ${filtros.contenido}`} size="small" onDelete={() => setFiltros(prev => ({ ...prev, contenido: '' }))} />
+                            )}
+                            {filtros.fecha && (
+                                <Chip label={`Fecha: ${filtros.fecha}`} size="small" onDelete={() => setFiltros(prev => ({ ...prev, fecha: '' }))} />
+                            )}
+                            {filtros.usuario && (
                                 <Chip
-                                    icon={<ClearIcon />}
-                                    label="Limpiar filtros"
+                                    label={`Usuario: ${usuariosParaFiltro.find(u => String(u.emisorId) === filtros.usuario)?.emisorNombre ?? filtros.usuario}`}
                                     size="small"
-                                    variant="outlined"
-                                    onClick={() => setFiltros({ contenido: '', fecha: '', usuario: '' })}
+                                    onDelete={() => setFiltros(prev => ({ ...prev, usuario: '' }))}
                                 />
-                            </Box>
-                        )}
-                    </Box>
-                </Collapse>
+                            )}
+                            <Chip
+                                icon={<ClearIcon />}
+                                label="Limpiar"
+                                size="small"
+                                variant="outlined"
+                                onClick={() => setFiltros({ contenido: '', fecha: '', usuario: '' })}
+                            />
+                        </Box>
+                    )}
+                </Box>
+            </Collapse>
+            <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 3, bgcolor: '#F8FAFC', position: 'relative' }}>
 
                 {cargando ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
