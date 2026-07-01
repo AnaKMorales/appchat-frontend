@@ -965,7 +965,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
                                             En respuesta a {formatNombreMensaje(mensajePadre)}
                                         </Typography>
                                         <Typography variant="caption" sx={{ display: 'block', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {mensajePadre.contenido}
+                                            {getDisplayContent(mensajePadre)}
                                         </Typography>
                                     </Box>
                                 ) : m.parentId != null && m.parentContenido ? (
@@ -974,7 +974,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
                                             En respuesta a {m.parentEmisorNombre || 'Usuario'}
                                         </Typography>
                                         <Typography variant="caption" sx={{ display: 'block', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {m.parentContenido}
+                                            {getDisplayContent({ id: m.parentId, contenido: m.parentContenido })}
                                         </Typography>
                                     </Box>
                                 ) : null}
@@ -1164,7 +1164,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
                                 Respondiendo a {formatNombreMensaje(replyTo)}
                             </Typography>
                             <Typography variant="caption" sx={{ display: 'block', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {replyTo.contenido}
+                                {getDisplayContent(replyTo)}
                             </Typography>
                         </Box>
                         <IconButton size="small" onClick={() => setReplyTo(null)} sx={{ color: '#94A3B8', flexShrink: 0 }}>

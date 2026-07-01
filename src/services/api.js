@@ -17,11 +17,11 @@ async function parseResponse(response) {
         let mensaje = `HTTP ${response.status}`;
         if (text) {
             try {
-                // Errores 
+                // el backend manda {"error":"..."}
                 const data = JSON.parse(text);
                 mensaje = data.error || data.message || mensaje;
             } catch {
-                // Respuesta 
+                // si no es json es la pagina de error de payara
                 mensaje = /<html/i.test(text)
                     ? 'Datos invalidos. Revisa que todos los campos esten completos.'
                     : text;
@@ -268,7 +268,7 @@ export const salirComunidad = async (comunidadId, token) => {
 };
 
 export const eliminarMiembroComunidad = async (comunidadId, userId, token) => {
-    const response = await apiFetch(`${BASE_URL}/comunidades/${comunidadId}/mimebros/${userId}`, {
+    const response = await apiFetch(`${BASE_URL}/comunidades/${comunidadId}/miembros/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
     });
