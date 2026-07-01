@@ -305,7 +305,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
 
     // Descifrar mensajes E2E cuando llegan nuevos o cambia el mapa de usuarios
     useEffect(() => {
-        if (!cryptoState?.privateKey || mensajes.length === 0) return;
+        if (!cryptoState?.privateKey || (mensajes.length === 0 && mensajesFijados.length === 0)) return;
         let cancelled = false;
         const decrypt = async () => {
             const nuevos = {};
@@ -334,10 +334,25 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
                         cryptoState.privateKey,
                         senderPubKey
                     );
-                    // null = intento fallido (clave rotada); lo marcamos para no reintentar
                     nuevos[m.id] = plain;
                     if (plain === null) console.warn(`[E2E] decryptMsg devolvió null para msg id=${m.id} (clave rotada o incompatible)`);
                 } catch(e) { console.error(`[E2E] Error descifrando msg id=${m.id}:`, e); }
+            }
+            // Descifrar también mensajes fijados que no estén ya en decryptedContents
+            for (const pin of mensajesFijados) {
+                const pinId = pin.mensajeId ?? pin.id;
+                if (!pinId || !isE2E(pin.contenido)) continue;
+                if (decryptedContents[pinId] !== undefined || nuevos[pinId] !== undefined) continue;
+                const senderPubKey = usuariosMap[pin.emisorId]?.publicKey;
+                try {
+                    const plain = await decryptMsg(
+                        pin.contenido,
+                        usuarioActual?.id,
+                        cryptoState.privateKey,
+                        senderPubKey
+                    );
+                    nuevos[pinId] = plain;
+                } catch(e) { /* ignorar */ }
             }
             if (!cancelled && Object.keys(nuevos).length > 0) {
                 setDecryptedContents(prev => ({ ...prev, ...nuevos }));
@@ -346,7 +361,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
         decrypt();
         return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mensajes, cryptoState?.privateKey, usuariosMap]);
+    }, [mensajes, mensajesFijados, cryptoState?.privateKey, usuariosMap]);
 
     // Devuelve el texto a mostrar para un mensaje (descifrado si aplica)
     const getDisplayContent = (m) => {
@@ -817,7 +832,7 @@ export default function Chat({ token, chat, usuarioActual, onVolver, cryptoState
                                     textOverflow: 'ellipsis'
                                 }}
                             >
-                                {pinActual.contenido}
+                                {getDisplayContent({ id: idMensajeFijado(pinActual), contenido: pinActual.contenido })}
                             </Typography>
                         </Box>
                     </Box>

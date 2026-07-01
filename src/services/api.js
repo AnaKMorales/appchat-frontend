@@ -185,7 +185,7 @@ export const fijarMensaje = async (chatId, mensajeId, token) => {
         }
     });
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    await parseResponse(response);
 };
 
 export const desfijarMensaje = async (chatId, mensajeId, token) => {
@@ -196,7 +196,7 @@ export const desfijarMensaje = async (chatId, mensajeId, token) => {
         }
     });
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    await parseResponse(response);
 };
 
 export const getMensajesFijados = async (chatId, token) => {
